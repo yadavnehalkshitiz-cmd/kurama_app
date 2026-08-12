@@ -112,7 +112,7 @@ class ConnectionBanner extends StatelessWidget {
               size: 14,
             ),
             label: Text(
-              isKeyRejected ? 'Fix Key' : 'Settings',
+              isKeyRejected ? 'Settings' : 'Settings',
               style: const TextStyle(fontSize: 11),
             ),
             style: TextButton.styleFrom(

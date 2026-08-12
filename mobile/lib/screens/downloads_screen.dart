@@ -238,69 +238,66 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   }
 
   Future<void> _sweepOrphans(BuildContext context) async {
-    final summary = _storage;
-    final count = summary?.orphanCount ?? 0;
+    final state = context.read<AppState>();
     final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Sweep orphan files?'),
-            content: Text(
-              'Deletes $count unreferenced file${count == 1 ? '' : 's'} '
-              '(${formatBytes(summary?.orphanBytes ?? 0)}) left over from '
-              'interrupted or deleted downloads.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Sweep'),
-              ),
-            ],
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sweep orphaned files?'),
+        content: const Text(
+          'Scans private storage for leftover partial downloads or '
+          'interrupted or deleted downloads.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
           ),
-        ) ??
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Sweep'),
+          ),
+        ],
+      ),
+    ) ??
         false;
     if (!confirmed || !mounted) return;
-    final freed = await StorageManager.cleanupOrphans(
-        context.read<AppState>().downloads);
-    if (!mounted) return;
+    final freed = await StorageManager.cleanupOrphans(state.downloads);
+    if (!mounted || !context.mounted) return;
     _message(context,
         freed > 0 ? '🧹 Freed ${formatBytes(freed)}' : 'Nothing to sweep');
     _loadStorage();
   }
 
   Future<void> _offloadFiles(BuildContext context) async {
+    final state = context.read<AppState>();
     final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Offload media files?'),
-            content: const Text(
-              'Deletes the downloaded media files but keeps them in your '
-              'history so you can re-download any of them later. Private '
-              'vault items and locally imported originals are kept.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Offload'),
-              ),
-            ],
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Offload media files?'),
+        content: const Text(
+          'Deletes the downloaded media files but keeps them in your '
+          'history so you can re-download any of them later. Private '
+          'vault items and locally imported originals are kept.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
           ),
-        ) ??
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Offload'),
+          ),
+        ],
+      ),
+    ) ??
         false;
     if (!confirmed || !mounted) return;
-    final state = context.read<AppState>();
     final removed = await StorageManager.offloadSavedFiles(state.downloads);
     for (final task in removed) {
       state.updateDownload(task.taskId, task);
     }
-    if (!mounted) return;
+    if (!mounted || !context.mounted) return;
     _message(
       context,
       removed.isEmpty
@@ -353,6 +350,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   }
 
   Future<void> _importLocalFile(BuildContext context) async {
+    final state = context.read<AppState>();
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowMultiple: false,
@@ -364,12 +362,13 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     if (result == null || result.files.isEmpty) return;
     final path = result.files.single.path;
     if (path == null) {
-      _message(context, 'Could not read that file');
+      if (mounted && context.mounted) {
+        _message(context, 'Could not read that file');
+      }
       return;
     }
-    final state = context.read<AppState>();
     final task = await importLocalFile(state, path);
-    if (!mounted) return;
+    if (!mounted || !context.mounted) return;
     if (task == null) {
       _message(context, 'Unsupported file type');
       return;
@@ -491,10 +490,10 @@ class _DownloadCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (statusColor, statusIcon) = switch (task.status) {
-      DownloadStatus.completed => (const Color(0xFF4CAF50), Icons.check_circle),
-      DownloadStatus.failed => (const Color(0xFFEF5350), Icons.error),
-      DownloadStatus.downloading => (const Color(0xFFFF9800), Icons.downloading),
-      DownloadStatus.pending => (Colors.grey, Icons.hourglass_empty),
+      DownloadStatus.completed || DownloadStatus.savedToVault => (const Color(0xFF4CAF50), Icons.check_circle),
+      DownloadStatus.failed || DownloadStatus.permanentlyFailed || DownloadStatus.cancelled => (const Color(0xFFEF5350), Icons.error),
+      DownloadStatus.downloading || DownloadStatus.verifying || DownloadStatus.saving => (const Color(0xFFFF9800), Icons.downloading),
+      DownloadStatus.pending || DownloadStatus.waitingForWorker || DownloadStatus.recovered || DownloadStatus.paused => (Colors.grey, Icons.hourglass_empty),
     };
 
     final dateStr = DateFormat('MMM d · h:mm a').format(task.createdAt.toLocal());

@@ -162,11 +162,11 @@ class _AudioPlayerSurfaceState extends State<AudioPlayerSurface> {
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
 
     if (_error != null) {
-      return Stack(
+      return const Stack(
         fit: StackFit.expand,
         children: [
-          const _Backdrop(artworkUrl: null),
-          const _PlayerNotice(
+          _Backdrop(artworkUrl: null),
+          _PlayerNotice(
             icon: Icons.error_outline_rounded,
             title: 'Could not play this audio file',
           ),
@@ -295,19 +295,19 @@ class _Backdrop extends StatelessWidget {
       fit: StackFit.expand,
       children: [
         // Base obsidian gradient
-        DecoratedBox(
+        const DecoratedBox(
           decoration: BoxDecoration(
             gradient: RadialGradient(
-              center: const Alignment(0, -0.35),
+              center: Alignment(0, -0.35),
               radius: 1.15,
               colors: [
-                const Color(0xFF3A1A10),
-                const Color(0xFF0A0A0E),
+                Color(0xFF3A1A10),
+                Color(0xFF0A0A0E),
               ],
-              stops: const [0.0, 1.0],
+              stops: [0.0, 1.0],
             ),
           ),
-          child: const SizedBox.expand(),
+          child: SizedBox.expand(),
         ),
         // Blurred artwork over the base gradient (later children paint on top)
         if (artwork != null)
@@ -385,15 +385,15 @@ class _ArtworkFallback extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(
+    return const DecoratedBox(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [Color(0xFFFF7A3D), Color(0xFF5A1B12)],
         ),
       ),
-      child: const Center(
+      child: Center(
         child: Icon(Icons.graphic_eq_rounded, color: Colors.white, size: 84),
       ),
     );

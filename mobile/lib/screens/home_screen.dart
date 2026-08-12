@@ -229,9 +229,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               TextField(
                 controller: keyController,
                 decoration: const InputDecoration(
-                  labelText: 'API Key',
-                  prefixIcon: Icon(Icons.key_outlined),
-                  helperText: 'Same as KURAMA_API_KEY on your server',
+                  helperText: 'Configured on your server',
                 ),
                 obscureText: true,
               ),
@@ -364,10 +362,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     } catch (e) {
       if (!mounted) return;
       if (e is ApiException && e.isAuthError) {
-        // The server is reachable but rejected the key — flip the banner to
-        // "Fix Key" and open Server Settings once so the user can paste the
-        // correct key instead of hitting a dead-end error snackbar. The URL
-        // is remembered so the fetch auto-retries after the key is fixed.
+        // The server is reachable but rejected the key — update ConnectionStatus
+        // and open Server Settings once so the user can paste the correct key.
         setState(() => _connectionStatus = ConnectionStatus.invalidKey);
         _pendingFetchUrl = url;
         if (!_promptedForKey) {

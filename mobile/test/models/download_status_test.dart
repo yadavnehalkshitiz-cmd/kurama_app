@@ -2,9 +2,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kurama_mobile/models/download_task.dart';
 
 void main() {
-  test('download status exposes an uppercase display label', () {
+  test('download status exposes an uppercase display label for 12 states', () {
     expect(DownloadStatus.completed.displayLabel, 'COMPLETED');
     expect(DownloadStatus.downloading.displayLabel, 'DOWNLOADING');
+    expect(DownloadStatus.waitingForWorker.displayLabel, 'WAITING');
+    expect(DownloadStatus.savedToVault.displayLabel, 'IN VAULT');
+  });
+
+  test('isActive and isTerminal identify task lifecycle phases correctly', () {
+    expect(DownloadStatus.downloading.isActive, isTrue);
+    expect(DownloadStatus.waitingForWorker.isActive, isTrue);
+    expect(DownloadStatus.completed.isTerminal, isTrue);
+    expect(DownloadStatus.cancelled.isTerminal, isTrue);
   });
 
   test('download transfer and vault fields survive JSON persistence', () {

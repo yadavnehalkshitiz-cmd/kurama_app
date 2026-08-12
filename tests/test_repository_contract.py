@@ -34,6 +34,16 @@ class RepositoryContractTests(unittest.TestCase):
                 self.assertFalse((ROOT / relative).exists(), relative)
                 self.assertFalse((ROOT / "backend" / relative).exists(), relative)
 
+    def test_release_client_has_no_api_key_setting_or_default(self):
+        """No production shared secret compiled into the release client."""
+        import re
+        dart_source = "\n".join(
+            path.read_text(encoding="utf-8", errors="replace")
+            for path in (ROOT / "mobile/lib").rglob("*.dart")
+        )
+        self.assertNotRegex(dart_source, r"KURAMA_API_KEY\s*=\s*['\"][^'\"]+")
+        self.assertNotIn("Fix Key", dart_source)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -106,9 +106,7 @@ class _DownloadProgressScreenState extends State<DownloadProgressScreen>
     final wasNotCompleted = _currentTask?.status != DownloadStatus.completed;
     // Older servers don't echo the thumbnail — keep the one captured when
     // the download was started so the player artwork survives.
-    if (updated.thumbnailUrl == null) {
-      updated.thumbnailUrl = widget.task.thumbnailUrl;
-    }
+    updated.thumbnailUrl ??= widget.task.thumbnailUrl;
     setState(() => _currentTask = updated);
     context.read<AppState>().updateDownload(widget.taskId, updated);
 
@@ -550,6 +548,11 @@ class _DownloadProgressScreenState extends State<DownloadProgressScreen>
       DownloadTask task, ThemeData theme, Color primary) {
     switch (task.status) {
       case DownloadStatus.pending:
+      case DownloadStatus.waitingForWorker:
+      case DownloadStatus.verifying:
+      case DownloadStatus.saving:
+      case DownloadStatus.recovered:
+      case DownloadStatus.paused:
         return SizedBox(
           width: 90,
           height: 90,
@@ -598,6 +601,7 @@ class _DownloadProgressScreenState extends State<DownloadProgressScreen>
         );
 
       case DownloadStatus.completed:
+      case DownloadStatus.savedToVault:
         return ScaleTransition(
           scale: _successScale,
           child: Container(
@@ -620,6 +624,8 @@ class _DownloadProgressScreenState extends State<DownloadProgressScreen>
         );
 
       case DownloadStatus.failed:
+      case DownloadStatus.permanentlyFailed:
+      case DownloadStatus.cancelled:
         return Container(
           width: 90,
           height: 90,

@@ -1,7 +1,76 @@
-enum DownloadStatus { pending, downloading, completed, failed }
+/// Download task lifecycle states.
+///
+/// The 4 original states (pending, downloading, completed, failed) are
+/// preserved for backward-compat with existing JSON / SQLite data.
+/// New states are added without breaking the `_parseStatus` fallback.
+enum DownloadStatus {
+  // ── Original (legacy-compatible) ────────────────────────────
+  pending,
+  downloading,
+  completed,
+  failed,
+  // ── Phase 0 additions ────────────────────────────────────────
+  /// Task is queued but waiting for a worker slot.
+  waitingForWorker,
+  /// A post-download integrity check is running.
+  verifying,
+  /// User or system cancelled the task.
+  cancelled,
+  /// Download succeeded but file is being moved/saved locally.
+  saving,
+  /// File saved to the local vault (private storage).
+  savedToVault,
+  /// All retries exhausted — no further attempts will be made.
+  permanentlyFailed,
+  /// Task was recovered from a crashed session.
+  recovered,
+  /// Task is paused (reserved for future streaming resumption).
+  paused,
+}
 
 extension DownloadStatusDisplay on DownloadStatus {
-  String get displayLabel => name.toUpperCase();
+  String get displayLabel {
+    switch (this) {
+      case DownloadStatus.pending:
+        return 'QUEUED';
+      case DownloadStatus.waitingForWorker:
+        return 'WAITING';
+      case DownloadStatus.downloading:
+        return 'DOWNLOADING';
+      case DownloadStatus.verifying:
+        return 'VERIFYING';
+      case DownloadStatus.saving:
+        return 'SAVING';
+      case DownloadStatus.completed:
+        return 'COMPLETED';
+      case DownloadStatus.savedToVault:
+        return 'IN VAULT';
+      case DownloadStatus.failed:
+        return 'FAILED';
+      case DownloadStatus.permanentlyFailed:
+        return 'FAILED';
+      case DownloadStatus.cancelled:
+        return 'CANCELLED';
+      case DownloadStatus.recovered:
+        return 'RECOVERED';
+      case DownloadStatus.paused:
+        return 'PAUSED';
+    }
+  }
+
+  bool get isTerminal =>
+      this == DownloadStatus.completed ||
+      this == DownloadStatus.savedToVault ||
+      this == DownloadStatus.permanentlyFailed ||
+      this == DownloadStatus.cancelled;
+
+  bool get isActive =>
+      this == DownloadStatus.pending ||
+      this == DownloadStatus.waitingForWorker ||
+      this == DownloadStatus.downloading ||
+      this == DownloadStatus.verifying ||
+      this == DownloadStatus.saving ||
+      this == DownloadStatus.recovered;
 }
 
 class DownloadTask {
@@ -59,12 +128,27 @@ class DownloadTask {
     switch (status) {
       case DownloadStatus.pending:
         return 'Queued';
+      case DownloadStatus.waitingForWorker:
+        return 'Waiting';
       case DownloadStatus.downloading:
         return 'Downloading $progress%';
+      case DownloadStatus.verifying:
+        return 'Verifying';
+      case DownloadStatus.saving:
+        return 'Saving';
       case DownloadStatus.completed:
         return 'Completed';
+      case DownloadStatus.savedToVault:
+        return 'In Vault';
       case DownloadStatus.failed:
+      case DownloadStatus.permanentlyFailed:
         return 'Failed';
+      case DownloadStatus.cancelled:
+        return 'Cancelled';
+      case DownloadStatus.recovered:
+        return 'Recovered';
+      case DownloadStatus.paused:
+        return 'Paused';
     }
   }
 
@@ -107,12 +191,28 @@ class DownloadTask {
     switch (s) {
       case 'pending':
         return DownloadStatus.pending;
+      case 'waiting_for_worker':
+        return DownloadStatus.waitingForWorker;
       case 'downloading':
         return DownloadStatus.downloading;
+      case 'verifying':
+        return DownloadStatus.verifying;
+      case 'saving':
+        return DownloadStatus.saving;
       case 'completed':
         return DownloadStatus.completed;
+      case 'saved_to_vault':
+        return DownloadStatus.savedToVault;
       case 'failed':
         return DownloadStatus.failed;
+      case 'permanently_failed':
+        return DownloadStatus.permanentlyFailed;
+      case 'cancelled':
+        return DownloadStatus.cancelled;
+      case 'recovered':
+        return DownloadStatus.recovered;
+      case 'paused':
+        return DownloadStatus.paused;
       default:
         return DownloadStatus.pending;
     }

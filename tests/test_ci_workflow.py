@@ -86,11 +86,22 @@ class FlutterWorkflowTests(unittest.TestCase):
         self.assertIn("PYTHONPATH", workflow)
         self.assertIn("docker build -f deployment/Dockerfile .", workflow)
 
-    def test_backend_container_starts_only_the_api(self):
+    def test_windows_job_does_not_regenerate_runner(self):
+        workflow = self.workflow_text()
+        self.assertNotIn("flutter create --platforms=windows .", workflow)
+
+    def test_flutter_workflow_has_test_gate_and_ios_build(self):
+        workflow = self.workflow_text()
+        self.assertIn("test_flutter:", workflow)
+        self.assertIn("build_ios:", workflow)
+        self.assertIn("runs-on: macos-15", workflow)
+        self.assertIn("flutter build ios --release --no-codesign", workflow)
+
+    def test_backend_container_starts_factory_app(self):
         dockerfile = (self.root / "deployment" / "Dockerfile").read_text(
             encoding="utf-8"
         )
-        self.assertIn('CMD ["uvicorn", "api_server:app"', dockerfile)
+        self.assertIn('CMD ["uvicorn", "kurama_api.app:create_app", "--factory"', dockerfile)
         self.assertNotIn("run_bot.py", dockerfile)
         self.assertNotIn("bot.py", dockerfile)
 
