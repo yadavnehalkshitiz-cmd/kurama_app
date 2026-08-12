@@ -88,18 +88,7 @@ class ConnectionBanner extends StatelessWidget {
             ),
             const SizedBox(width: 4),
           ],
-          if (showUseCloud) ...[
-            TextButton.icon(
-              onPressed: onUseCloud,
-              icon: const Icon(Icons.cloud_queue_rounded, size: 14),
-              label: const Text('Use Cloud', style: TextStyle(fontSize: 11)),
-              style: TextButton.styleFrom(
-                foregroundColor: const Color(0xFFFF8A65),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              ),
-            ),
-            const SizedBox(width: 4),
-          ],
+
           TextButton.icon(
             onPressed: onTapSettings,
             icon: Icon(
