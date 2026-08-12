@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
@@ -26,7 +26,7 @@ class ApiClient {
   ApiClient({required this.baseUrl, required this.apiKey});
 
   Map<String, String> get _headers => {
-        'Authorization': 'Bearer $apiKey',
+        if (apiKey.trim().isNotEmpty) 'Authorization': 'Bearer ${apiKey.trim()}',
         'Content-Type': 'application/json',
       };
 
