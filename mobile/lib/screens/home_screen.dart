@@ -229,7 +229,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               TextField(
                 controller: keyController,
                 decoration: const InputDecoration(
-                  helperText: 'Configured on your server',
+                  labelText: 'API Key',
+                  prefixIcon: Icon(Icons.key_outlined),
+                  helperText: 'Enter your server API key',
                 ),
                 obscureText: true,
               ),
