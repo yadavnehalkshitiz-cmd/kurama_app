@@ -52,16 +52,10 @@ void main() async {
 
   // Production credentials must be supplied at build time and never committed.
   const prodKey = String.fromEnvironment('KURAMA_API_KEY');
-  const prodUrl = 'https://kurama-telebot.onrender.com';
-
-  // Smart-detect local server for zero-config development
-  String defaultUrl = prodUrl;
-  if (kDebugMode) {
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      defaultUrl = 'http://10.0.2.2:3000';
-    } else {
-      defaultUrl = 'http://localhost:3000';
-    }
+  // Default local backend server
+  String defaultUrl = 'http://localhost:8000';
+  if (defaultTargetPlatform == TargetPlatform.android) {
+    defaultUrl = 'http://10.0.2.2:8000';
   }
 
   // Force reset if saved values are placeholders or invalid

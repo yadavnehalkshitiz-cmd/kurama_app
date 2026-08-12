@@ -219,7 +219,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 controller: urlController,
                 decoration: const InputDecoration(
                   labelText: 'Server URL',
-                  hintText: 'https://kurama-telebot.onrender.com',
+                  hintText: 'http://localhost:8000',
                   prefixIcon: Icon(Icons.dns_outlined),
                 ),
                 keyboardType: TextInputType.url,
@@ -459,7 +459,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             serverUrl: context.read<AppState>().client.baseUrl,
             onTapSettings: _showConfigDialog,
             onUseCloud: () => _showConfigDialog(
-              url: 'https://kurama-telebot.onrender.com',
+              url: 'http://localhost:8000',
             ),
             onRetry: _checkConnection,
           ),
