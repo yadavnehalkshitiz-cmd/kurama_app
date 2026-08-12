@@ -43,20 +43,8 @@ class ApiClient {
   /// `/api/health` alone returns 200 even with a wrong API key, which made
   /// the app look "connected" while every real request failed with 401.
   /// We therefore also probe the authenticated `/api/platforms` endpoint.
-  ///
-  /// Cloud hosts (render.com free tier) cold-start slowly and are throttled
-  /// while waking up, so they get a longer window with a few retries instead
-  /// of being reported as "offline".
   Future<ConnectionStatus> checkConnection() async {
-    final slowHost = baseUrl.contains('onrender.com');
-    final attempts = slowHost ? 3 : 1;
-    final timeout = slowHost ? const Duration(seconds: 20) : _kShortTimeout;
-    for (var attempt = 0; attempt < attempts; attempt++) {
-      final status = await _probeConnection(timeout);
-      if (status != ConnectionStatus.offline || !slowHost) return status;
-      await Future<void>.delayed(const Duration(seconds: 2));
-    }
-    return ConnectionStatus.offline;
+    return _probeConnection(_kShortTimeout);
   }
 
   Future<ConnectionStatus> _probeConnection(Duration timeout) async {

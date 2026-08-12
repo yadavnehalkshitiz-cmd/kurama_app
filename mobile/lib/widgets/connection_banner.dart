@@ -33,9 +33,6 @@ class ConnectionBanner extends StatelessWidget {
     final isKeyRejected = status == ConnectionStatus.invalidKey;
     final accent =
         isKeyRejected ? const Color(0xFFFFB300) : const Color(0xFFD84315);
-    final showUseCloud = !isKeyRejected &&
-        !serverUrl.contains('onrender.com') &&
-        onUseCloud != null;
 
     return Container(
       width: double.infinity,
@@ -70,9 +67,7 @@ class ConnectionBanner extends StatelessWidget {
                 Text(
                   isKeyRejected
                       ? 'The server refused this key — update it in Settings'
-                      : serverUrl.contains('onrender.com')
-                          ? 'Cloud server is waking up — cold starts can take a minute'
-                          : 'Connecting to $serverUrl',
+                      : 'Connecting to $serverUrl',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.7),
                     fontSize: 11,
