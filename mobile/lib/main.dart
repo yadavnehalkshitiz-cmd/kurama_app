@@ -58,10 +58,14 @@ void main() async {
     defaultUrl = 'http://10.0.2.2:8000';
   }
 
-  // Force reset if saved values are placeholders or invalid
+  // Force reset if saved values are placeholders, stale Render URLs, or invalid
   final String effectiveUrl;
-  if (savedUrl == null || savedUrl.isEmpty || savedUrl.contains('changeme')) {
+  if (savedUrl == null ||
+      savedUrl.isEmpty ||
+      savedUrl.contains('changeme') ||
+      savedUrl.contains('onrender.com')) {
     effectiveUrl = defaultUrl;
+    await storage.clearServerConfig();
   } else {
     effectiveUrl = savedUrl;
   }
