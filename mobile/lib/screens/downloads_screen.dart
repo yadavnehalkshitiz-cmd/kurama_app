@@ -864,7 +864,7 @@ class _DownloadCard extends StatelessWidget {
       await Share.shareXFiles(
         [XFile(filePath)],
         subject: task.title,
-        text: '📥 Downloaded via KuramaBot',
+        text: '📥 Downloaded via Kurama App',
       );
     } catch (e) {
       if (!context.mounted) return;

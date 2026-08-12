@@ -1,0 +1,62 @@
+<style>
+  .showcase{display:grid;grid-template-columns:minmax(290px,.68fr) minmax(520px,1.32fr);gap:22px;align-items:start;margin:20px 0}
+  .device{background:#09090d;border:1px solid rgba(255,255,255,.16);box-shadow:0 28px 70px rgba(0,0,0,.35);overflow:hidden}
+  .phone{max-width:390px;margin:auto;border-radius:34px;padding:12px}
+  .desktop{border-radius:22px;padding:14px}
+  .screen{position:relative;border-radius:25px;overflow:hidden;background:linear-gradient(180deg,#121119 0%,#09090d 62%);min-height:670px;color:white}
+  .desktop .screen{border-radius:14px;min-height:610px;display:grid;grid-template-columns:150px 1fr}
+  .top{display:flex;align-items:center;justify-content:space-between;padding:18px 18px 12px}
+  .brand{font-weight:900;letter-spacing:.01em}.brand b{color:#ff6b3c}.avatar{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:#2d1b18;border:1px solid #ff704355;font-size:12px}
+  .search{margin:0 18px 15px;border:1px solid rgba(255,255,255,.11);background:#1a1922;border-radius:15px;padding:11px 13px;color:#aaa;display:flex;gap:8px;font-size:12px}
+  .hero{margin:0 18px;border-radius:22px;min-height:178px;padding:20px;display:flex;flex-direction:column;justify-content:flex-end;background:radial-gradient(circle at 80% 30%,#8b321f 0,#3b1b1d 32%,#19151d 72%);position:relative;overflow:hidden}
+  .hero:after{content:'▶';position:absolute;right:26px;top:36px;width:70px;height:70px;border-radius:50%;display:grid;place-items:center;background:rgba(255,107,60,.16);border:1px solid rgba(255,139,101,.35);font-size:28px;color:#ff8a65}
+  .kicker{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:#ffab91;font-weight:800}.hero h4{font-size:21px;margin:6px 0 3px}.muted{font-size:11px;color:#a9a5af}.actions{display:flex;gap:8px;margin-top:12px}.primary,.secondary{border-radius:10px;padding:8px 11px;font-size:10px;font-weight:800}.primary{background:#ff5c2e}.secondary{background:rgba(255,255,255,.10)}
+  .section-title{display:flex;justify-content:space-between;align-items:center;padding:18px 18px 10px;font-weight:800;font-size:13px}.section-title span{font-size:9px;color:#ff8a65}
+  .rail{display:flex;gap:10px;padding:0 18px;overflow:hidden}.tile{min-width:104px}.art{height:74px;border-radius:13px;background:linear-gradient(145deg,#4b2530,#171923);position:relative}.art.audio{border-radius:50%;height:82px;width:82px;background:conic-gradient(from 30deg,#ff7043,#3d1f2a,#15151c,#ff8a65)}.progress{height:2px;background:#39221f;margin-top:5px;border-radius:2px;overflow:hidden}.progress:before{content:'';display:block;width:58%;height:100%;background:#ff6234}.tile b{display:block;font-size:10px;margin-top:6px}.tile small{display:block;font-size:8px;color:#777;margin-top:2px}
+  .mini{position:absolute;left:10px;right:10px;bottom:65px;background:rgba(29,27,36,.96);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:9px 11px;display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:9px}.mini-art{width:34px;height:34px;border-radius:8px;background:linear-gradient(145deg,#f36d42,#47202c)}.mini b{font-size:10px;display:block}.mini small{font-size:8px;color:#888}.controls{font-size:15px;letter-spacing:4px}
+  .bottom{position:absolute;left:0;right:0;bottom:0;height:58px;background:#0e0d13;border-top:1px solid rgba(255,255,255,.07);display:flex;justify-content:space-around;align-items:center}.navitem{font-size:9px;text-align:center;color:#777}.navitem i{font-style:normal;display:block;font-size:17px;margin-bottom:2px}.navitem.active{color:#ff8a65}
+  .sidebar{padding:22px 12px;background:#0d0c12;border-right:1px solid rgba(255,255,255,.07)}.sidebrand{font-weight:900;font-size:14px;margin-bottom:25px}.sideitem{padding:10px;border-radius:10px;margin:5px 0;font-size:10px;color:#8d8993}.sideitem.active{background:#ff623416;color:#ff8a65}.desktop-main{position:relative;padding-bottom:78px;overflow:hidden}.desktop .top{padding:20px 24px 12px}.desktop .search{width:44%;margin:0}.desktop .hero{min-height:210px;margin:0 24px;padding:25px}.desktop .rail{padding:0 24px}.desktop .section-title{padding-left:24px;padding-right:24px}.desktop .tile{min-width:128px}.desktop .art{height:86px}.desktop .mini{left:18px;right:18px;bottom:14px}.desktop .bottom{display:none}
+  .notes{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:18px 0}.note{padding:12px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);font-size:11px}.note b{color:#ff8a65;display:block;margin-bottom:4px}
+  @media(max-width:900px){.showcase{grid-template-columns:1fr}.desktop{display:none}.notes{grid-template-columns:1fr 1fr}}
+</style>
+
+<h2>A home that behaves like a media hub</h2>
+<p class="subtitle">Four primary destinations, a universal discovery field, immediate playback continuity, and responsive phone/desktop composition.</p>
+
+<div class="showcase">
+  <div class="device phone">
+    <div class="screen">
+      <div class="top"><div class="brand"><b>K</b>urama</div><div class="avatar">KY</div></div>
+      <div class="search">⌕ &nbsp; Search library or paste a media link</div>
+      <div class="hero"><div class="kicker">Continue watching</div><h4>Mountain Stories</h4><div class="muted">Episode 4 · 38 minutes left</div><div class="actions"><div class="primary">▶ Resume</div><div class="secondary">↓ Save offline</div></div></div>
+      <div class="section-title">Recently added <span>View library</span></div>
+      <div class="rail"><div class="tile"><div class="art"></div><b>Night Drive</b><small>Local video</small></div><div class="tile"><div class="art" style="background:linear-gradient(145deg,#243f51,#14161e)"></div><b>Blue Horizon</b><small>Saved offline</small></div><div class="tile"><div class="art" style="background:linear-gradient(145deg,#513f25,#18151a)"></div><b>City Notes</b><small>Online</small></div></div>
+      <div class="section-title">Made from your music <span>See all</span></div>
+      <div class="rail"><div class="tile"><div class="art audio"></div><b>Late focus</b><small>18 tracks</small></div><div class="tile"><div class="art audio" style="background:conic-gradient(#467f91,#1c2838,#a57a49,#467f91)"></div><b>On repeat</b><small>12 tracks</small></div></div>
+      <div class="mini"><div class="mini-art"></div><div><b>Night Drive</b><small>Kurama mix</small></div><div class="controls">Ⅱ 〉</div></div>
+      <div class="bottom"><div class="navitem active"><i>⌂</i>Home</div><div class="navitem"><i>⌕</i>Explore</div><div class="navitem"><i>▦</i>Library</div><div class="navitem"><i>⇩</i>Downloads</div></div>
+    </div>
+  </div>
+
+  <div class="device desktop">
+    <div class="screen">
+      <aside class="sidebar"><div class="sidebrand"><span style="color:#ff6b3c">K</span>urama</div><div class="sideitem active">⌂ &nbsp; Home</div><div class="sideitem">⌕ &nbsp; Explore</div><div class="sideitem">▦ &nbsp; Library</div><div class="sideitem">⇩ &nbsp; Downloads</div><div class="sideitem">▣ &nbsp; Protected</div><div class="sideitem">⚙ &nbsp; Settings</div></aside>
+      <main class="desktop-main">
+        <div class="top"><div class="search">⌕ &nbsp; Search library or paste a media link</div><div class="avatar">KY</div></div>
+        <div class="hero"><div class="kicker">Continue watching</div><h4>Mountain Stories</h4><div class="muted">Episode 4 · 38 minutes left · Available offline</div><div class="actions"><div class="primary">▶ Resume</div><div class="secondary">More details</div></div></div>
+        <div class="section-title">Recently added <span>View library</span></div>
+        <div class="rail"><div class="tile"><div class="art"></div><b>Night Drive</b><small>Local video</small></div><div class="tile"><div class="art" style="background:linear-gradient(145deg,#243f51,#14161e)"></div><b>Blue Horizon</b><small>Saved offline</small></div><div class="tile"><div class="art" style="background:linear-gradient(145deg,#513f25,#18151a)"></div><b>City Notes</b><small>Online stream</small></div><div class="tile"><div class="art" style="background:linear-gradient(145deg,#382a50,#16151d)"></div><b>Local Sessions</b><small>Device media</small></div></div>
+        <div class="section-title">Your music <span>Open music</span></div>
+        <div class="rail"><div class="tile"><div class="art audio"></div><b>Late focus</b><small>18 tracks</small></div><div class="tile"><div class="art audio" style="background:conic-gradient(#467f91,#1c2838,#a57a49,#467f91)"></div><b>On repeat</b><small>12 tracks</small></div></div>
+        <div class="mini"><div class="mini-art"></div><div><b>Night Drive</b><small>Kurama mix · 2:14 / 4:09</small></div><div class="controls">〈 Ⅱ 〉</div></div>
+      </main>
+    </div>
+  </div>
+</div>
+
+<div class="notes"><div class="note"><b>Four destinations</b>Vault moves into Library; profile and settings live behind the avatar.</div><div class="note"><b>Universal discovery</b>One field searches local media or resolves a pasted URL.</div><div class="note"><b>Persistent playback</b>Mini-player survives tab changes and expands into video or music mode.</div><div class="note"><b>Responsive, not stretched</b>Bottom navigation becomes a desktop sidebar with the same information model.</div></div>
+
+<div class="options">
+  <div class="option" data-choice="approve-home" onclick="toggleSelect(this)"><div class="letter">✓</div><div class="content"><h3>Use this product structure</h3><p>Continue to browser, library, and player behavior.</p></div></div>
+  <div class="option" data-choice="revise-home" onclick="toggleSelect(this)"><div class="letter">↺</div><div class="content"><h3>Revise the home/navigation</h3><p>I’ll explain the changes in the terminal.</p></div></div>
+</div>

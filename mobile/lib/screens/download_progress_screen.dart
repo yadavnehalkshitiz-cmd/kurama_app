@@ -286,7 +286,7 @@ class _DownloadProgressScreenState extends State<DownloadProgressScreen>
       await Share.shareXFiles(
         [XFile(filePath)],
         subject: title,
-        text: '📥 Downloaded via KuramaBot',
+        text: '📥 Downloaded via Kurama App',
       );
     } catch (e) {
       if (!mounted) return;

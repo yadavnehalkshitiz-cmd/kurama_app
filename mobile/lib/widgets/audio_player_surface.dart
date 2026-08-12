@@ -107,7 +107,7 @@ class _AudioPlayerSurfaceState extends State<AudioPlayerSurface> {
           tag: MediaItem(
             id: widget.filePath,
             title: widget.title,
-            artist: widget.artist ?? 'KuramaBot',
+            artist: widget.artist ?? 'Kurama App',
             artUri: widget.artworkUrl == null
                 ? null
                 : Uri.tryParse(widget.artworkUrl!),
@@ -218,7 +218,7 @@ class _AudioPlayerSurfaceState extends State<AudioPlayerSurface> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        widget.artist ?? 'KuramaBot audio',
+                        widget.artist ?? 'Kurama App audio',
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           color: Colors.white54,

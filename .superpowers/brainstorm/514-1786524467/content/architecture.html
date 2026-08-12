@@ -1,0 +1,77 @@
+<style>
+  .arch-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin:20px 0; }
+  .layer { border:1px solid rgba(255,255,255,.13); border-radius:18px; padding:16px; background:linear-gradient(145deg,rgba(255,255,255,.07),rgba(255,255,255,.025)); min-height:160px; }
+  .layer.core { border-color:rgba(255,108,62,.48); box-shadow:0 0 30px rgba(255,87,34,.09); }
+  .layer h3 { margin:4px 0 8px; }
+  .eyebrow { color:#ff8a65; font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+  .chips { display:flex; flex-wrap:wrap; gap:7px; margin-top:12px; }
+  .chip { border:1px solid rgba(255,255,255,.12); border-radius:999px; padding:5px 9px; font-size:12px; color:rgba(255,255,255,.75); }
+  .flow { display:grid; grid-template-columns:1fr 42px 1fr 42px 1fr 42px 1fr; align-items:center; gap:6px; margin:12px 0 22px; }
+  .flow-node { min-height:72px; border:1px solid rgba(255,255,255,.13); background:rgba(255,255,255,.045); border-radius:14px; padding:12px; display:flex; flex-direction:column; justify-content:center; }
+  .flow-node strong { font-size:13px; }
+  .flow-node span { font-size:11px; opacity:.62; margin-top:4px; }
+  .arrow { text-align:center; color:#ff8a65; font-size:24px; }
+  .principles { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-top:16px; }
+  .principle { padding:12px; border-left:3px solid #ff6d3b; background:rgba(255,109,59,.07); border-radius:5px 12px 12px 5px; font-size:12px; }
+  @media(max-width:800px){ .arch-grid{grid-template-columns:1fr}.flow{grid-template-columns:1fr}.arrow{transform:rotate(90deg)}.principles{grid-template-columns:1fr 1fr} }
+</style>
+
+<h2>Kurama unified media architecture</h2>
+<p class="subtitle">One player and one library for local files, protected media, online streams, and offline downloads—backed by replaceable platform adapters.</p>
+
+<div class="arch-grid">
+  <section class="layer">
+    <div class="eyebrow">Experience layer</div>
+    <h3>Feature modules</h3>
+    <p>Small, independently testable screens and controllers. UI never talks directly to files, WebViews, or HTTP.</p>
+    <div class="chips"><span class="chip">Home</span><span class="chip">Explore</span><span class="chip">Library</span><span class="chip">Downloads</span><span class="chip">Account</span></div>
+  </section>
+  <section class="layer core">
+    <div class="eyebrow">Shared product core</div>
+    <h3>Media domain</h3>
+    <p>A canonical <b>MediaItem</b>, unified catalog, playback session, download state machine, and repository contracts.</p>
+    <div class="chips"><span class="chip">Media catalog</span><span class="chip">Playback queue</span><span class="chip">Progress</span><span class="chip">Search</span><span class="chip">Collections</span></div>
+  </section>
+  <section class="layer">
+    <div class="eyebrow">Infrastructure</div>
+    <h3>Replaceable adapters</h3>
+    <p>Platform and network details stay behind stable interfaces, allowing Android, iOS, and Windows to behave consistently.</p>
+    <div class="chips"><span class="chip">Media scanner</span><span class="chip">SQLite index</span><span class="chip">Secure storage</span><span class="chip">Managed API</span><span class="chip">Vault cipher</span></div>
+  </section>
+</div>
+
+<div class="section">
+  <div class="label">Guest / local flow</div>
+  <div class="flow">
+    <div class="flow-node"><strong>Permission granted</strong><span>Platform-safe access</span></div><div class="arrow">→</div>
+    <div class="flow-node"><strong>Background indexer</strong><span>Incremental metadata + artwork</span></div><div class="arrow">→</div>
+    <div class="flow-node"><strong>Unified library</strong><span>Video, music, folders, vault</span></div><div class="arrow">→</div>
+    <div class="flow-node"><strong>Shared player</strong><span>Mini, full, background, PiP</span></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Signed-in / online flow</div>
+  <div class="flow">
+    <div class="flow-node"><strong>URL or browser</strong><span>Discover supported media</span></div><div class="arrow">→</div>
+    <div class="flow-node"><strong>Managed resolver</strong><span>Authenticated metadata + stream</span></div><div class="arrow">→</div>
+    <div class="flow-node"><strong>Play now or save</strong><span>Same MediaItem identity</span></div><div class="arrow">→</div>
+    <div class="flow-node"><strong>Library continuity</strong><span>Resume online or offline</span></div>
+  </div>
+</div>
+
+<div class="principles">
+  <div class="principle"><b>Offline-first</b><br>Local playback never depends on the service.</div>
+  <div class="principle"><b>Guest-first</b><br>No account wall around user-owned media.</div>
+  <div class="principle"><b>One source of truth</b><br>Persistent database replaces screen-owned lists.</div>
+  <div class="principle"><b>Failure isolation</b><br>Browser or network faults cannot break the library/player.</div>
+</div>
+
+<div class="options" style="margin-top:24px">
+  <div class="option" data-choice="approve-architecture" onclick="toggleSelect(this)">
+    <div class="letter">✓</div><div class="content"><h3>Architecture looks right</h3><p>Continue to the product navigation and home experience.</p></div>
+  </div>
+  <div class="option" data-choice="revise-architecture" onclick="toggleSelect(this)">
+    <div class="letter">↺</div><div class="content"><h3>Revise this structure</h3><p>I’ll describe what should change in the terminal.</p></div>
+  </div>
+</div>

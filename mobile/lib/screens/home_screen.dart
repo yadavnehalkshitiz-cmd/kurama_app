@@ -416,7 +416,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
             const SizedBox(width: 8),
             const Text(
-              'KuramaBot',
+              'Kurama App',
               style: TextStyle(
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0.5,

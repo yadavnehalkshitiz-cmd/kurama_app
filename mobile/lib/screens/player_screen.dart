@@ -5,6 +5,7 @@ import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
+import '../app/theme/kurama_colors.dart';
 import '../models/media_file_type.dart';
 import '../models/playback_entry.dart';
 import '../services/playback_position_store.dart';
@@ -125,8 +126,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
         allowMuting: true,
         showControls: true,
         materialProgressColors: ChewieProgressColors(
-          playedColor: const Color(0xFFFF5722),
-          handleColor: const Color(0xFFFF9100),
+          playedColor: KuramaColors.lacquer,
+          handleColor: KuramaColors.gold,
           bufferedColor: Colors.white24,
           backgroundColor: Colors.black26,
         ),
