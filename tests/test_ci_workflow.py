@@ -23,6 +23,16 @@ class FlutterWorkflowTests(unittest.TestCase):
         self.assertIn("runs-on: windows-2022", workflow)
         self.assertNotIn("runs-on: windows-latest", workflow)
 
+    def test_flutter_workflow_uses_app_repository_paths_and_names(self):
+        workflow = self.workflow_text()
+        self.assertNotIn("kurama_mobile/", workflow)
+        self.assertIn("working-directory: ./mobile", workflow)
+        self.assertIn(
+            "mobile/build/app/outputs/flutter-apk/app-release.apk", workflow
+        )
+        self.assertIn("Kurama-App-Android-APK", workflow)
+        self.assertIn("Kurama-App-Windows.zip", workflow)
+
     def test_tagged_android_build_configures_release_signing(self):
         workflow = self.workflow_text()
 
