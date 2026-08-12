@@ -3,6 +3,7 @@
 !.env.example
 .idea/
 .vscode/
+.worktrees/
 .dart_tool/
 .flutter-plugins*
 .packages
