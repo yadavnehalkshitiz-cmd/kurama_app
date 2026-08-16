@@ -46,10 +46,28 @@ from downloader import build_ydl_opts, fetch_info, download_single
 from utils import get_platform, human_size, human_duration, clean_md
 import user_config
 
+import subprocess
+
 logger = logging.getLogger(__name__)
 
-API_VERSION = "1.1.1"
+API_VERSION = "1.1.2"
 _APP_START_TIME = time.time()
+
+# ═══════════════════════════════════════════════════════
+#  AUTO-UPGRADE yt-dlp
+# ═══════════════════════════════════════════════════════
+
+def _upgrade_ytdlp():
+    """Background task to ensure yt-dlp is always up-to-date."""
+    try:
+        logger.info("[API] Checking for yt-dlp updates...")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade", "yt-dlp"])
+        logger.info("[API] yt-dlp is up-to-date")
+    except Exception as e:
+        logger.error(f"[API] yt-dlp auto-upgrade failed: {e}")
+
+# Start upgrade in a background thread so it doesn't block server startup
+threading.Thread(target=_upgrade_ytdlp, daemon=True).start()
 
 # ═══════════════════════════════════════════════════════
 #  APP

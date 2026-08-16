@@ -15,6 +15,16 @@ __pycache__/
 *.log
 cookies/
 cookies*.txt
+.flutter-plugins*
+.packages
+build/
+**/build/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+*.log
+cookies/
+cookies*.txt
 downloads/
 saved_videos/
 temp_mobile/
@@ -24,3 +34,6 @@ user_configs.json
 **/key.properties
 **/*.jks
 **/*.keystore
+.gradle_home/
+nuget.exe
+.artifacts/

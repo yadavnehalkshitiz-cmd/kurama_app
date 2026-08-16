@@ -19,11 +19,21 @@ class AppEnvironment {
   /// Example:
   ///   flutter build apk --dart-define=KURAMA_API_BASE_URL=https://api.kurama.app
   factory AppEnvironment.fromBuildConfig() {
-    const apiBaseUrl = String.fromEnvironment(
+    String apiBaseUrl = const String.fromEnvironment(
       'KURAMA_API_BASE_URL',
       defaultValue: '',
     );
-    return const AppEnvironment._(
+
+    if (apiBaseUrl.isEmpty && !kReleaseMode) {
+      // Zero-config defaults for local development
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        apiBaseUrl = 'http://10.0.2.2:8000';
+      } else {
+        apiBaseUrl = 'http://localhost:8000';
+      }
+    }
+
+    return AppEnvironment._(
       apiBaseUrl: apiBaseUrl,
       isRelease: kReleaseMode,
     );

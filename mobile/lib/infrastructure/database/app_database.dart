@@ -78,8 +78,15 @@ class MigrationRecords extends Table {
   ],
 )
 class AppDatabase extends _$AppDatabase {
-  AppDatabase([QueryExecutor? executor])
-      : super(executor ?? _openConnection());
+  static AppDatabase? _instance;
+
+  factory AppDatabase() {
+    return _instance ??= AppDatabase._internal();
+  }
+
+  AppDatabase._internal() : super(_openConnection());
+
+  AppDatabase.forTesting(super.executor);
 
   /// Schema version — bump when adding new tables or columns.
   @override
@@ -104,6 +111,10 @@ LazyDatabase _openConnection() {
   return LazyDatabase(() async {
     final dir = await getApplicationDocumentsDirectory();
     final file = File(p.join(dir.path, 'kurama_app.db'));
-    return NativeDatabase.createInBackground(file);
+    
+    return NativeDatabase(file, logStatements: false, setup: (db) {
+      db.execute('PRAGMA journal_mode = WAL;');
+      db.execute('PRAGMA synchronous = NORMAL;');
+    });
   });
 }

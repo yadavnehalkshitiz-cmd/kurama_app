@@ -1,13 +1,20 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.kuramabot.kurama_mobile"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Internet and Storage Permissions -->
+    <!-- Permissions -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
+
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-    <uses-permission android:name="android.permission.WAKE_LOCK"/>
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
@@ -16,14 +23,12 @@
         android:label="Kurama App"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:usesCleartextTraffic="true"
-        android:requestLegacyExternalStorage="true">
+        android:usesCleartextTraffic="true">
 
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
-            android:taskAffinity=""
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
@@ -34,13 +39,11 @@
               android:resource="@style/NormalTheme"
               />
 
-            <!-- Main Launcher Intent -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
 
-            <!-- Direct Share Intent Filter for Video Links -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -48,6 +51,7 @@
             </intent-filter>
         </activity>
 
+        <!-- Audio Service setup -->
         <service
             android:name="com.ryanheise.audioservice.AudioService"
             android:foregroundServiceType="mediaPlayback"

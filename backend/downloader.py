@@ -307,21 +307,38 @@ def fetch_info(url: str, platform: str):
 
 def download_single(url: str, ydl_opts: dict):
     """Download a single video/audio. Returns (filepath, info_dict)."""
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=True)
-        filename = ydl.prepare_filename(info)
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            return _resolve_result(ydl, info)
+    except Exception as e:
+        # ⚡ DYNAMIC FALLBACK: If specific format/merge fails, try best single-file stream
+        logger.warning(f"[YTDLP] Primary download failed, attempting fallback: {e}")
+        fallback_opts = dict(ydl_opts)
+        # Simplify format to best single file (usually 720p or lower mp4)
+        fallback_opts["format"] = "best[ext=mp4]/best"
+        # Disable merging if it was the cause of failure
+        fallback_opts.pop("merge_output_format", None)
+        
+        with yt_dlp.YoutubeDL(fallback_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            return _resolve_result(ydl, info)
 
-        if not os.path.exists(filename):
-            base = os.path.splitext(filename)[0]
-            # Check video extensions
-            for ext in (".mp4", ".mkv", ".webm", ".mov"):
+
+def _resolve_result(ydl, info):
+    filename = ydl.prepare_filename(info)
+
+    if not os.path.exists(filename):
+        base = os.path.splitext(filename)[0]
+        # Check video extensions
+        for ext in (".mp4", ".mkv", ".webm", ".mov"):
+            if os.path.exists(base + ext):
+                filename = base + ext
+                break
+        else:
+            # Check audio extensions
+            for ext in (".mp3", ".m4a", ".aac", ".ogg", ".opus", ".wav"):
                 if os.path.exists(base + ext):
                     filename = base + ext
                     break
-            else:
-                # Check audio extensions
-                for ext in (".mp3", ".m4a", ".aac", ".ogg", ".opus", ".wav"):
-                    if os.path.exists(base + ext):
-                        filename = base + ext
-                        break
-        return filename, info
+    return filename, info

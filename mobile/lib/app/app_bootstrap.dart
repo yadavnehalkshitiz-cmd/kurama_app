@@ -17,13 +17,10 @@ class AppBootstrap {
 
   /// Initialise platform services and return a configured [AppScope].
   static Future<AppScope> initialize(AppEnvironment env) async {
-    // 1. Flutter binding must be ready before any plugin calls.
-    WidgetsFlutterBinding.ensureInitialized();
-
-    // 2. Open the Drift database (creates file on first launch).
+    // 1. Open the Drift database (creates file on first launch).
     final db = AppDatabase();
 
-    // 3. Run the one-shot legacy migration (idempotent).
+    // 2. Run the one-shot legacy migration (idempotent).
     try {
       final migrated = await LegacyStateMigrator(db).run();
       debugPrint('[Bootstrap] Migration: $migrated tasks moved to SQLite');
@@ -32,18 +29,21 @@ class AppBootstrap {
       debugPrint('[Bootstrap] Migration skipped: $e');
     }
 
-    // 4. Recover any interrupted downloads.
+    // 3. Recover any interrupted downloads.
     final downloadRepo = SqliteDownloadRepository(db);
     await downloadRepo.recoverInterruptedTasks();
 
-    // 5. Build remaining dependencies.
+    // 4. Build remaining dependencies.
     final playbackRepo = SqlitePlaybackPositionRepository(db);
     final prefs = await SharedPreferences.getInstance();
+    
+    // Transparent zero-config API client
     final apiClient = ApiClient(
       baseUrl: env.apiBaseUrl,
-      apiKey: '',
+      apiKey: '', // Standard defaults handled within ApiClient
     );
 
+    debugPrint('[Bootstrap] Initialization complete.');
     return AppScope(
       env: env,
       db: db,

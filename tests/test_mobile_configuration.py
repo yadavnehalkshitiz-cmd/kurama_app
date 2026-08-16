@@ -25,9 +25,9 @@ class MobileConfigurationTests(unittest.TestCase):
         self.assertIn('android:label="Kurama App"', manifest)
 
     def test_api_key_has_no_compiled_production_default(self):
-        main = (ROOT / "mobile/lib/main.dart").read_text(encoding="utf-8")
-        self.assertIn("String.fromEnvironment('KURAMA_API_KEY')", main)
-        self.assertNotRegex(main, r"const\s+prodKey\s*=\s*'[^']+'")
+        env = (ROOT / "mobile/lib/app/app_environment.dart").read_text(encoding="utf-8")
+        self.assertNotIn("const prodKey", env)
+        self.assertNotRegex(env, r"const\s+prodKey\s*=\s*'[^']+'")
 
 
 if __name__ == "__main__":

@@ -2,35 +2,67 @@ import 'package:flutter/foundation.dart';
 import '../models/download_task.dart';
 import 'api_client.dart';
 import 'download_storage.dart';
+import 'server_discovery_service.dart';
 
 /// Central app state managed via Provider.
-/// Automatically persists download history to device storage on every change.
 class AppState extends ChangeNotifier {
   final DownloadStorage _storage;
-  final int userId;
+  int _userId;
   ApiClient _client;
   final List<DownloadTask> _downloads = [];
+  bool _isDiscovering = false;
 
-  AppState(this._storage, this._client, {required this.userId}) {
+  AppState(this._storage, this._client, {required int userId}) : _userId = userId {
     _loadPersistedState();
+    // Auto-discover server on startup
+    discoverServer();
   }
 
   // ── Getters ──────────────────────────────────────────
 
   ApiClient get client => _client;
+  int get userId => _userId;
   List<DownloadTask> get downloads => List.unmodifiable(_downloads);
+  bool get isDiscovering => _isDiscovering;
+
+  // ── Server Discovery ─────────────────────────────────
+
+  Future<void> discoverServer() async {
+    if (_isDiscovering) return;
+    _isDiscovering = true;
+    notifyListeners();
+
+    try {
+      final foundUrl = await ServerDiscoveryService.discover(_client.baseUrl);
+      if (foundUrl != null && foundUrl != _client.baseUrl) {
+        updateClient(_client.copyWith(baseUrl: foundUrl));
+      }
+    } finally {
+      _isDiscovering = false;
+      notifyListeners();
+    }
+  }
 
   // ── Initial load from disk ───────────────────────────
 
   void _loadPersistedState() {
     final saved = _storage.loadDownloads();
     if (saved.isNotEmpty) {
+      _downloads.clear();
       _downloads.addAll(saved);
       notifyListeners();
     }
   }
 
+  /// Reload downloads from disk (useful when background worker updates them).
+  void syncWithStorage() => _loadPersistedState();
+
   // ── Mutations (all auto-save) ────────────────────────
+
+  void updateUserId(int newId) {
+    _userId = newId;
+    notifyListeners();
+  }
 
   void updateClient(ApiClient newClient) {
     _client = newClient;

@@ -1,15 +1,20 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
+
 import '../services/app_state.dart';
-import '../services/api_client.dart';
 import '../services/media_library.dart';
-import '../widgets/connection_banner.dart';
+import '../services/storage_manager.dart';
+import '../services/permission_service.dart';
+import '../services/media_scanner_service.dart';
+import '../services/notification_service.dart';
+import 'ak_player_library_screen.dart';
 import 'video_info_screen.dart';
-import 'downloads_screen.dart';
 import 'player_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -19,115 +24,115 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, TickerProviderStateMixin {
   final _urlController = TextEditingController();
   bool _isLoading = false;
-  ConnectionStatus _connectionStatus = ConnectionStatus.offline;
-  bool _checkingConnection = true;
-  bool _promptedForKey = false;
-  String? _pendingFetchUrl;
   StreamSubscription? _intentSubscription;
+  StorageSummary? _storage;
+
+  // Animations
+  late AnimationController _fadeController;
+  late List<Animation<double>> _staggeredAnimations;
+  late AnimationController _buttonScaleController;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _checkConnection();
     _initShareIntentListener();
+    _loadStorage();
+    _checkClipboardForLink();
+    
+    // Safely request permissions
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _requestInitialPermissions();
+    });
+
+    _fadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
+
+    _staggeredAnimations = List.generate(
+      5,
+      (index) => CurvedAnimation(
+        parent: _fadeController,
+        curve: Interval(
+          0.1 * index,
+          0.5 + (0.1 * index),
+          curve: Curves.easeOutCubic,
+        ),
+      ),
+    );
+
+    _buttonScaleController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 100),
+      lowerBound: 0.96,
+      upperBound: 1.0,
+      value: 1.0,
+    );
+
+    _fadeController.forward();
+  }
+
+  Future<void> _requestInitialPermissions() async {
+    debugPrint('[Home] Requesting initial permissions...');
+    try {
+      // 1. Notifications
+      await NotificationService.requestPermission();
+      
+      // 2. Storage/Media check
+      if (mounted) {
+        final sdk = await _getSdkVersion();
+        bool granted = false;
+        if (Platform.isAndroid) {
+          if (sdk >= 33) {
+            granted = await Permission.videos.isGranted && await Permission.audio.isGranted;
+          } else {
+            granted = await Permission.storage.isGranted;
+          }
+        }
+        
+        debugPrint('[Home] Initial storage granted: $granted');
+        
+        if (!granted && mounted) {
+          final result = await PermissionService.checkAndRequestStorage(context);
+          debugPrint('[Home] Storage request result: $result');
+        }
+      }
+    } catch (e) {
+      debugPrint('[Home] Startup permission check failed: $e');
+    }
+  }
+
+  Future<int> _getSdkVersion() async {
+    if (!Platform.isAndroid) return 0;
+    try {
+      final sdkStr = Platform.operatingSystemVersion;
+      final match = RegExp(r'SDK (\d+)').firstMatch(sdkStr);
+      return match != null ? int.parse(match.group(1)!) : 0;
+    } catch (_) {
+      return 0;
+    }
   }
 
   @override
   void dispose() {
     _intentSubscription?.cancel();
+    _fadeController.dispose();
+    _buttonScaleController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _urlController.dispose();
     super.dispose();
   }
 
-  /// Listen for shared video links from external apps (YouTube, TikTok, Instagram, Twitter, etc.)
-  void _initShareIntentListener() {
-    try {
-      // Shared text/links while app is running
-      _intentSubscription =
-          ReceiveSharingIntent.instance.getMediaStream().listen((value) {
-        if (value.isNotEmpty) {
-          for (var file in value) {
-            _handleSharedItem(file.path);
-          }
-        }
-      }, onError: (err) {
-        debugPrint('Share intent stream error: $err');
-      });
-
-      // Shared text/links when app is opened from closed state
-      ReceiveSharingIntent.instance.getInitialMedia().then((value) {
-        if (value.isNotEmpty) {
-          for (var file in value) {
-            _handleSharedItem(file.path);
-          }
-        }
-      }).catchError((err) {
-        debugPrint('Share intent initial media error: $err');
-      });
-    } catch (e) {
-      debugPrint('ReceiveSharingIntent not supported on this platform: $e');
-    }
-  }
-
-  void _handleSharedItem(String path) {
-    // Local media files shared into the app are imported + played; text and
-    // links go through the normal URL flow.
-    if (isMediaFile(path) && File(path).existsSync()) {
-      _handleSharedMediaFile(path);
-      return;
-    }
-    _handleSharedUrl(path);
-  }
-
-  Future<void> _handleSharedMediaFile(String path) async {
-    final state = context.read<AppState>();
-    final task = await importLocalFile(state, path);
-    if (!mounted) return;
-    if (task == null || task.localPath == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('⚠️ Could not import that file')),
-      );
-      return;
-    }
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => PlayerScreen(
-          filePath: task.localPath!,
-          title: task.title,
-          format: task.format,
-          artist: task.format == 'audio' ? task.platform : null,
-        ),
-      ),
-    );
-  }
-
-  void _handleSharedUrl(String text) {
-    final extractedUrl = _extractFirstUrl(text);
-    if (extractedUrl != null && extractedUrl.isNotEmpty) {
-      if (mounted) {
-        setState(() => _urlController.text = extractedUrl);
-        _fetchInfo();
-      }
-    }
-  }
-
-  String? _extractFirstUrl(String text) {
-    final exp = RegExp(r'https?://[^\s]+');
-    final match = exp.firstMatch(text);
-    return match?.group(0);
-  }
-
-  // Check clipboard for links when app comes to foreground
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _checkClipboardForLink();
+      _loadStorage();
+      if (mounted) context.read<AppState>().syncWithStorage();
     }
   }
 
@@ -135,632 +140,481 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     try {
       final data = await Clipboard.getData(Clipboard.kTextPlain);
       final text = data?.text?.trim() ?? '';
-      final url = _extractFirstUrl(text);
-      if (url != null && url.isNotEmpty) {
+      if (text.startsWith('http') && _urlController.text.isEmpty) {
         if (!mounted) return;
-        // If current input is empty, just auto-fill
-        if (_urlController.text.isEmpty) {
-          setState(() => _urlController.text = url);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('📋 Auto-pasted link from clipboard'),
-              action: SnackBarAction(
-                label: 'Fetch',
-                onPressed: _fetchInfo,
-              ),
-              duration: const Duration(seconds: 3),
-            ),
-          );
-          return;
-        }
-        // If it's a DIFFERENT link, show a suggestion snackbar
-        if (_urlController.text != url) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('🔗 Link detected in clipboard'),
-              action: SnackBarAction(
-                label: 'Paste',
-                onPressed: () {
-                  setState(() => _urlController.text = url);
-                  _fetchInfo();
-                },
-              ),
-              duration: const Duration(seconds: 5),
-            ),
-          );
-        }
-      }
-    } catch (_) {
-      // Clipboard access might be restricted on some OS versions/states
-    }
-  }
-
-  Future<void> _checkConnection() async {
-    setState(() => _checkingConnection = true);
-    final client = context.read<AppState>().client;
-    final status = await client.checkConnection();
-    if (!mounted) return;
-    setState(() {
-      _connectionStatus = status;
-      _checkingConnection = false;
-    });
-    // Fresh installs ship a placeholder API key: `/api/health` still answers
-    // 200 so the app used to look "connected" while every request 401'd.
-    // Prompt for the real key once instead of leaving the user confused.
-    if (!_promptedForKey && status == ConnectionStatus.invalidKey) {
-      final key = client.apiKey;
-      if (key.isEmpty || key == 'changeme-in-production') {
-        _promptedForKey = true;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _showConfigDialog();
-        });
-      }
-    }
-  }
-
-  // ── Server config dialog ─────────────────────────────────
-
-  void _showConfigDialog({String? url, String? key}) {
-    final state = context.read<AppState>();
-    final api = state.client;
-    final urlController = TextEditingController(text: url ?? api.baseUrl);
-    final keyController = TextEditingController(text: key ?? api.apiKey);
-    bool saving = false;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('⚙️ Server Settings'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: urlController,
-                decoration: const InputDecoration(
-                  labelText: 'Server URL',
-                  hintText: 'http://localhost:8000',
-                  prefixIcon: Icon(Icons.dns_outlined),
-                ),
-                keyboardType: TextInputType.url,
-                autocorrect: false,
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: keyController,
-                decoration: const InputDecoration(
-                  labelText: 'API Key',
-                  prefixIcon: Icon(Icons.key_outlined),
-                  helperText: 'Enter your server API key',
-                ),
-                obscureText: true,
-              ),
-            ],
+        setState(() => _urlController.text = text);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('📋 Link auto-pasted from clipboard'),
+            duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
-            ),
-            FilledButton.icon(
-              onPressed: saving
-                  ? null
-                  : () async {
-                      setDialogState(() => saving = true);
-                      final newClient = ApiClient(
-                        baseUrl: urlController.text.trim(),
-                        apiKey: keyController.text.trim(),
-                      );
-                      final status = await newClient.checkConnection();
-                      if (!mounted) return;
-                      if (!ctx.mounted) return;
-                      if (status == ConnectionStatus.connected) {
-                        context.read<AppState>().updateClient(newClient);
-                        Navigator.pop(ctx);
-                        setState(
-                          () => _connectionStatus = ConnectionStatus.connected,
-                        );
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('✅ Connected to server'),
-                              backgroundColor: Color(0xFF2E7D32),
-                            ),
-                          );
-                        }
-                        // Auto-retry the link that failed with the old key.
-                        final pending = _pendingFetchUrl;
-                        if (pending != null) {
-                          _pendingFetchUrl = null;
-                          _fetchInfo(pending);
-                        }
-                      } else if (status == ConnectionStatus.invalidKey) {
-                        setDialogState(() => saving = false);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                                '❌ Server reached, but the API key was rejected'),
-                            backgroundColor: Color(0xFFC62828),
-                          ),
-                        );
-                      } else {
-                        setDialogState(() => saving = false);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                                '❌ Could not reach server. Check URL and network.'),
-                            backgroundColor: Color(0xFFC62828),
-                          ),
-                        );
-                      }
-                    },
-              icon: saving
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white),
-                    )
-                  : const Icon(Icons.link),
-              label: Text(saving ? 'Connecting...' : 'Connect'),
-            ),
-          ],
-        ),
-      ),
-    );
+        );
+      }
+    } catch (_) {}
   }
 
-  Future<void> _pasteFromClipboard() async {
-    final data = await Clipboard.getData(Clipboard.kTextPlain);
+  Future<void> _loadStorage() async {
+    try {
+      final state = context.read<AppState>();
+      final summary = await StorageManager.scan(state.downloads);
+      if (mounted) setState(() => _storage = summary);
+    } catch (_) {}
+  }
+
+  // ── Share Intent ─────────────────────────────────────────
+
+  void _initShareIntentListener() {
+    try {
+      _intentSubscription = ReceiveSharingIntent.instance.getMediaStream().listen((value) {
+        if (value.isNotEmpty) {
+          _handleSharedItem(value.first.path);
+        }
+      });
+      ReceiveSharingIntent.instance.getInitialMedia().then((value) {
+        if (value.isNotEmpty) {
+          _handleSharedItem(value.first.path);
+        }
+      });
+    } catch (e) {
+      debugPrint('Share intent error: $e');
+    }
+  }
+
+  void _handleSharedItem(String path) {
+    if (isMediaFile(path) && File(path).existsSync()) {
+      _importAndPlay(path);
+      return;
+    }
+    _handleUrl(path);
+  }
+
+  Future<void> _importAndPlay(String path) async {
     if (!mounted) return;
-    final text = data?.text?.trim() ?? '';
-    final url = _extractFirstUrl(text);
-    if (url != null && url.isNotEmpty) {
+    final state = context.read<AppState>();
+    final task = await importLocalFile(state, path);
+    if (!mounted) return;
+    if (task?.localPath == null) return;
+    Navigator.push(context, MaterialPageRoute(builder: (_) => PlayerScreen(
+      filePath: task!.localPath!,
+      title: task.title,
+      format: task.format,
+    )));
+  }
+
+  void _handleUrl(String text) {
+    final url = RegExp(r'https?://[^\s]+').firstMatch(text)?.group(0);
+    if (url != null && mounted) {
       setState(() => _urlController.text = url);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('📋 Pasted link from clipboard'),
-          duration: Duration(seconds: 1),
-        ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('⚠️ No valid video link found in clipboard'),
-        ),
-      );
+      _fetchInfo();
     }
   }
 
-  Future<void> _fetchInfo([String? overrideUrl]) async {
-    final rawText = overrideUrl ?? _urlController.text.trim();
-    final url = _extractFirstUrl(rawText) ?? rawText;
+  Future<void> _fetchInfo() async {
+    final url = _urlController.text.trim();
+    if (url.isEmpty) return;
 
-    if (url.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please paste or enter a video URL')),
-      );
-      return;
-    }
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('URL must start with http:// or https://')),
-      );
-      return;
-    }
+    // 🔒 Permission Check
+    final granted = await PermissionService.checkAndRequestStorage(context);
+    if (!mounted || !granted) return;
 
     setState(() => _isLoading = true);
     try {
-      final api = context.read<AppState>().client;
+      if (!mounted) return;
+      final state = Provider.of<AppState>(context, listen: false);
+      final api = state.client;
       final info = await api.fetchInfo(url);
-      _pendingFetchUrl = null;
-
       if (!mounted) return;
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => VideoInfoScreen(info: info)),
-      );
+      Navigator.push(context, MaterialPageRoute(builder: (_) => VideoInfoScreen(info: info)));
     } catch (e) {
-      if (!mounted) return;
-      if (e is ApiException && e.isAuthError) {
-        // The server is reachable but rejected the key — update ConnectionStatus
-        // and open Server Settings once so the user can paste the correct key.
-        setState(() => _connectionStatus = ConnectionStatus.invalidKey);
-        _pendingFetchUrl = url;
-        if (!_promptedForKey) {
-          _promptedForKey = true;
-          _showConfigDialog();
-          return;
-        }
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content:
-                Text('❌ API key rejected — update it in Server Settings'),
-            backgroundColor: Color(0xFFC62828),
-          ),
-        );
-        return;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('❌ $e')));
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('❌ ${e.toString()}'),
-          backgroundColor: const Color(0xFFC62828),
-        ),
-      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
+  // ── UI Components ────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final primary = theme.colorScheme.primary;
+    const primary = Color(0xFFFF5722); // Fox Amber
 
     return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.asset(
-                'assets/images/logo.png',
-                width: 26,
-                height: 26,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) =>
-                    const Text('🦊', style: TextStyle(fontSize: 20)),
-              ),
-            ),
-            const SizedBox(width: 8),
-            const Text(
-              'Kurama App',
-              style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.5,
-                  fontSize: 18),
-            ),
-          ],
-        ),
-        actions: [
-          // Connection status dot
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 4),
-            child: _checkingConnection
-                ? const SizedBox(
-                    width: 10,
-                    height: 10,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : _StatusDot(status: _connectionStatus),
-          ),
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            onPressed: _showConfigDialog,
-            tooltip: 'Server Settings',
-          ),
-          IconButton(
-            icon: const Icon(Icons.download_outlined),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const DownloadsScreen()),
-            ),
-            tooltip: 'Downloads',
-          ),
-        ],
-      ),
-      body: Column(
+      backgroundColor: const Color(0xFF12121A),
+      body: Stack(
         children: [
-          // Connection status banner
-          ConnectionBanner(
-            status: _connectionStatus,
-            serverUrl: context.read<AppState>().client.baseUrl,
-            onTapSettings: _showConfigDialog,
-            onUseCloud: () => _showConfigDialog(
-              url: 'http://localhost:8000',
-            ),
-            onRetry: _checkConnection,
-          ),
+          // Background Gradient
+          const Positioned.fill(child: _ObsidianGradient()),
 
-          // ── Hero section ──────────────────────────────────
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  primary.withValues(alpha: 0.18),
-                  primary.withValues(alpha: 0.04),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              border: Border(
-                bottom: BorderSide(
-                  color: Colors.white.withValues(alpha: 0.06),
+          CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              _buildSliverAppBar(),
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    _staggeredSlide(0, _buildFoxAura(primary)),
+                    const SizedBox(height: 32),
+                    _staggeredSlide(1, _buildUrlBento(theme, primary)),
+                    const SizedBox(height: 20),
+                    _staggeredSlide(2, _buildPulseGrid(theme, primary)),
+                    const SizedBox(height: 32),
+                    _staggeredSlide(3, _buildPlatformSection()),
+                    const SizedBox(height: 40),
+                  ]),
                 ),
               ),
+            ],
+          ),
+          
+          if (_isLoading)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black.withValues(alpha: 0.6),
+                child: const Center(child: CircularProgressIndicator(color: primary)),
+              ),
             ),
-            child: Column(
-              children: [
-                _AnimatedFoxIcon(color: primary),
-                const SizedBox(height: 12),
-                Text(
-                  'Share link from any app or paste below',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  textAlign: TextAlign.center,
+        ],
+      ),
+    );
+  }
+
+  Widget _staggeredSlide(int index, Widget child) {
+    return FadeTransition(
+      opacity: _staggeredAnimations[index],
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, 0.1),
+          end: Offset.zero,
+        ).animate(_staggeredAnimations[index]),
+        child: child,
+      ),
+    );
+  }
+
+  Widget _buildSliverAppBar() {
+    final state = context.watch<AppState>();
+    final isDefaultUrl = state.client.baseUrl.contains('10.0.2.2');
+    final isPhysical = !Platform.isWindows && (Platform.isAndroid || Platform.isIOS); // Simplified check
+    
+    return SliverAppBar(
+      expandedHeight: 0,
+      floating: true,
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      centerTitle: true,
+      title: const Text('KURAMA', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 4, fontSize: 18, color: Colors.white)),
+      actions: [
+        if (isDefaultUrl && isPhysical)
+          const Tooltip(
+            message: 'Default local URL might not work on physical devices. Change it in Profile.',
+            child: Padding(
+              padding: EdgeInsets.only(right: 16),
+              child: Icon(Icons.wifi_off_rounded, color: Colors.orangeAccent, size: 20),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildFoxAura(Color primary) {
+    return Center(
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Aura Glow
+          Container(
+            width: 160,
+            height: 160,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: primary.withValues(alpha: 0.2),
+                  blurRadius: 60,
+                  spreadRadius: 20,
                 ),
               ],
             ),
           ),
+          // Glass Card for Logo
+          ClipRRect(
+            borderRadius: BorderRadius.circular(36),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+              child: Container(
+                width: 110,
+                height: 110,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.white.withValues(alpha: 0.08),
+                      Colors.white.withValues(alpha: 0.02),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(36),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                ),
+                child: Center(
+                  child: Image.asset('assets/images/logo.png', width: 64, height: 64, 
+                    errorBuilder: (_, __, ___) => const Text('🦊', style: TextStyle(fontSize: 48))),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
+  Widget _buildUrlBento(ThemeData theme, Color primary) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E2C),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.bolt_rounded, color: primary, size: 20),
+              const SizedBox(width: 10),
+              const Text('INSTANT DOWNLOAD', style: TextStyle(letterSpacing: 2, fontWeight: FontWeight.w800, color: Colors.white60, fontSize: 11)),
+            ],
+          ),
           const SizedBox(height: 20),
-
-          // ── URL input section ─────────────────────────────
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Video Link',
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: theme.colorScheme.onSurfaceVariant,
-                        letterSpacing: 0.3,
-                      ),
+          TextField(
+            controller: _urlController,
+            style: const TextStyle(color: Colors.white, fontSize: 15),
+            decoration: InputDecoration(
+              hintText: 'Paste media URL...',
+              hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.2)),
+              filled: true,
+              fillColor: Colors.black.withValues(alpha: 0.4),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
+            ),
+            onSubmitted: (_) => _fetchInfo(),
+          ),
+          const SizedBox(height: 20),
+          // 🚀 POLISHED BUTTON
+          GestureDetector(
+            onTapDown: (_) => _buttonScaleController.reverse(),
+            onTapUp: (_) => _buttonScaleController.forward(),
+            onTapCancel: () => _buttonScaleController.forward(),
+            child: ScaleTransition(
+              scale: _buttonScaleController,
+              child: Container(
+                width: double.infinity,
+                height: 56,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFF5722), Color(0xFFFF4500)],
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFFF5722).withValues(alpha: 0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
                     ),
-                    InkWell(
-                      onTap: _pasteFromClipboard,
-                      borderRadius: BorderRadius.circular(8),
-                      child: const Padding(
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        child: Row(
+                  ],
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.download_rounded, color: Colors.white),
+                    SizedBox(width: 12),
+                    Text(
+                      'Fetch & Download',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            onTap: () {
+              HapticFeedback.lightImpact();
+              _fetchInfo();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPulseGrid(ThemeData theme, Color primary) {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Storage Bento
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E1E2C),
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              ),
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('STORAGE', style: TextStyle(letterSpacing: 1.5, fontWeight: FontWeight.w800, color: Colors.white24, fontSize: 10)),
+                  const SizedBox(height: 12),
+                  Text(_storage?.usedBytes != null ? formatBytes(_storage!.usedBytes) : '...', 
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
+                  const SizedBox(height: 4),
+                  const Text('Local Files', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () async {
+                      HapticFeedback.mediumImpact();
+                      final state = context.read<AppState>();
+                      final count = await MediaScannerService.scanAndImport(state);
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('🔍 Found and imported $count items'), behavior: SnackBarBehavior.floating),
+                        );
+                        _loadStorage();
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(color: primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+                      child: Text('Scan Media', style: TextStyle(color: primary, fontSize: 10, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 20),
+          // Recent Activity Bento
+          Expanded(
+            child: Consumer<AppState>(
+              builder: (context, state, _) {
+                final downloads = state.downloads;
+                final lastTask = downloads.firstOrNull;
+                return GestureDetector(
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AkPlayerLibraryScreen())),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E1E2C),
+                      borderRadius: BorderRadius.circular(28),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: lastTask != null && lastTask.thumbnailUrl != null
+                      ? Stack(
+                          fit: StackFit.expand,
                           children: [
-                            Icon(Icons.paste_rounded,
-                                size: 14, color: Color(0xFFFF8A65)),
-                            SizedBox(width: 4),
-                            Text(
-                              'Paste Clipboard',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Color(0xFFFF8A65),
-                                fontWeight: FontWeight.w600,
+                            Image.network(lastTask.thumbnailUrl!, fit: BoxFit.cover),
+                            Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [Colors.black26, Colors.black.withValues(alpha: 0.8)],
+                                ),
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text('RECENT', style: TextStyle(letterSpacing: 1.5, fontWeight: FontWeight.w800, color: Colors.white60, fontSize: 10)),
+                                  Text(lastTask.title, maxLines: 2, overflow: TextOverflow.ellipsis, 
+                                    style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                                ],
                               ),
                             ),
                           ],
+                        )
+                      : Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.history_rounded, color: Colors.white.withValues(alpha: 0.1), size: 32),
+                              const SizedBox(height: 8),
+                              const Text('No Activity', style: TextStyle(color: Colors.white24, fontSize: 12)),
+                            ],
+                          ),
                         ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _urlController,
-                        decoration: InputDecoration(
-                          hintText: 'Paste video link here...',
-                          hintStyle: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.3)),
-                          prefixIcon: const Icon(Icons.link_rounded, size: 20),
-                          suffixIcon: _urlController.text.isNotEmpty
-                              ? IconButton(
-                                  icon:
-                                      const Icon(Icons.close_rounded, size: 18),
-                                  onPressed: () =>
-                                      setState(() => _urlController.clear()),
-                                )
-                              : null,
-                        ),
-                        textInputAction: TextInputAction.go,
-                        onSubmitted: (_) => _fetchInfo(),
-                        autocorrect: false,
-                        onChanged: (_) => setState(() {}),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: FilledButton.icon(
-                    onPressed: _isLoading ? null : _fetchInfo,
-                    icon: _isLoading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2.5, color: Colors.white),
-                          )
-                        : const Icon(Icons.download_rounded),
-                    label: Text(_isLoading
-                        ? 'Fetching details...'
-                        : 'Fetch & Download Video'),
                   ),
-                ),
-              ],
-            ),
-          ),
-
-          const Spacer(),
-
-          // ── Platform chips ────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-            child: Column(
-              children: [
-                Text(
-                  'Supported Platforms',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant
-                        .withValues(alpha: 0.6),
-                    letterSpacing: 0.8,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                const Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  alignment: WrapAlignment.center,
-                  children: [
-                    _PlatformChip('🎬', 'YouTube'),
-                    _PlatformChip('📸', 'Instagram'),
-                    _PlatformChip('🎵', 'TikTok'),
-                    _PlatformChip('🐦', 'Twitter/X'),
-                    _PlatformChip('🌐', 'Facebook'),
-                    _PlatformChip('🤖', 'Reddit'),
-                    _PlatformChip('🔵', 'Vimeo'),
-                    _PlatformChip('🎮', 'Twitch'),
-                  ],
-                ),
-              ],
+                );
+              }
             ),
           ),
         ],
       ),
     );
   }
-}
 
-// ── Animated 🦊 hero icon ─────────────────────────────────
-class _AnimatedFoxIcon extends StatefulWidget {
-  final Color color;
-  const _AnimatedFoxIcon({required this.color});
-
-  @override
-  State<_AnimatedFoxIcon> createState() => _AnimatedFoxIconState();
-}
-
-class _AnimatedFoxIconState extends State<_AnimatedFoxIcon>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final Animation<double> _scale;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl =
-        AnimationController(vsync: this, duration: const Duration(seconds: 2))
-          ..repeat(reverse: true);
-    _scale = Tween<double>(begin: 1.0, end: 1.08).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+  Widget _buildPlatformSection() {
+    const platforms = ['YouTube', 'Instagram', 'TikTok', 'Twitter', 'Facebook', 'Vimeo', 'Reddit', 'Twitch'];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(left: 4),
+          child: Text('SUPPORTED SERVICES', style: TextStyle(letterSpacing: 2, fontWeight: FontWeight.w800, color: Colors.white24, fontSize: 10)),
+        ),
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: platforms.map((p) => Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1A24),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+            ),
+            child: Text(p, style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
+          )).toList(),
+        ),
+      ],
     );
   }
+}
 
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
+class _ObsidianGradient extends StatelessWidget {
+  const _ObsidianGradient();
   @override
   Widget build(BuildContext context) {
-    return ScaleTransition(
-      scale: _scale,
-      child: Container(
-        width: 90,
-        height: 90,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(22),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFFFF5722).withValues(alpha: 0.45),
-              blurRadius: 28,
-              spreadRadius: 2,
-            ),
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: RadialGradient(
+          center: Alignment(0.7, -0.4),
+          radius: 1.2,
+          colors: [
+            Color(0xFF1A1A2E),
+            Color(0xFF0A0A0E),
           ],
+          stops: [0.0, 0.8],
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(22),
-          child: Image.asset(
-            'assets/images/logo.png',
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Container(
-              color: widget.color.withValues(alpha: 0.2),
-              child: const Center(
-                child: Text('🦊', style: TextStyle(fontSize: 44)),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Platform chip ─────────────────────────────────────────
-class _PlatformChip extends StatelessWidget {
-  final String emoji;
-  final String label;
-  const _PlatformChip(this.emoji, this.label);
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(emoji, style: const TextStyle(fontSize: 14)),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: Colors.white70,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Connection status dot ──────────────────────────────────
-class _StatusDot extends StatelessWidget {
-  final ConnectionStatus status;
-
-  const _StatusDot({required this.status});
-
-  Color get _color => switch (status) {
-        ConnectionStatus.connected => const Color(0xFF4CAF50),
-        ConnectionStatus.invalidKey => const Color(0xFFFFB300),
-        ConnectionStatus.offline => const Color(0xFFFF8A65),
-      };
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 10,
-      height: 10,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: _color,
-        boxShadow: [
-          BoxShadow(
-            color: _color.withValues(alpha: 0.6),
-            blurRadius: 6,
-            spreadRadius: 1,
-          ),
-        ],
       ),
     );
   }

@@ -39,7 +39,7 @@ class PlayerScreen extends StatefulWidget {
 }
 
 class _PlayerScreenState extends State<PlayerScreen> {
-  static const _speedOptions = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
+  static const _speedOptions = [0.5, 1.0, 1.25, 1.5, 2.0];
 
   VideoPlayerController? _videoController;
   ChewieController? _chewieController;
@@ -188,9 +188,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _speed = _speedOptions[(idx + 1) % _speedOptions.length];
     _videoController?.setPlaybackSpeed(_speed);
     if (mounted) setState(() {});
-    final label = _speed == _speed.roundToDouble()
-        ? '${_speed.toInt()}×'
-        : '${_speed.toStringAsFixed(2)}×'.replaceAll('.00', '');
+    final label = '${_speed.toStringAsFixed(1).replaceAll('.0', '')}×';
     _showGesture(icon: Icons.speed_rounded, label: 'Speed $label');
   }
 
@@ -203,10 +201,16 @@ class _PlayerScreenState extends State<PlayerScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: Text(
-          _current.title,
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-          overflow: TextOverflow.ellipsis,
+        centerTitle: true,
+        title: Column(
+          children: [
+            const Text('AK PLAYER', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2, color: Color(0xFFFF5722))),
+            Text(
+              _current.title,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
         ),
         actions: [
           if (_hasQueue && _mediaType == MediaFileType.video) ...[
@@ -357,9 +361,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                           size: 14, color: Color(0xFFFF8A65)),
                       const SizedBox(width: 5),
                       Text(
-                        _speed == _speed.roundToDouble()
-                            ? '${_speed.toInt()}×'
-                            : '${_speed.toStringAsFixed(2)}×',
+                        '${_speed.toStringAsFixed(1).replaceAll('.0', '')}×',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 12,

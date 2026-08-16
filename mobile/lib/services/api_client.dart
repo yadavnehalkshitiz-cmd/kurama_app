@@ -23,7 +23,13 @@ class ApiClient {
   /// `.part` file against concurrent writers (background worker + UI).
   static final Set<String> _inflightTransfers = {};
 
-  ApiClient({required this.baseUrl, required this.apiKey});
+  ApiClient({String? baseUrl, String? apiKey})
+      : baseUrl = (baseUrl == null || baseUrl.isEmpty || baseUrl.contains('changeme'))
+            ? 'http://10.0.2.2:8000' // Default to local emulator backend
+            : baseUrl,
+        apiKey = (apiKey == null || apiKey.isEmpty || apiKey == 'changeme-in-production')
+            ? '' // Session tokens can be added here if needed
+            : apiKey;
 
   Map<String, String> get _headers => {
         if (apiKey.trim().isNotEmpty) 'Authorization': 'Bearer ${apiKey.trim()}',

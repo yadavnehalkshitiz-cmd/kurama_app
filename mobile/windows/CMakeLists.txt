@@ -42,12 +42,13 @@ function(APPLY_STANDARD_SETTINGS TARGET)
   target_compile_options(${TARGET} PRIVATE /W4 /WX /wd"4100")
   target_compile_options(${TARGET} PRIVATE /EHsc)
   target_compile_definitions(${TARGET} PRIVATE "_HAS_EXCEPTIONS=0")
+  target_compile_definitions(${TARGET} PRIVATE "_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS")
   target_compile_definitions(${TARGET} PRIVATE "$<$<CONFIG:Debug>:_DEBUG>")
 endfunction()
 
 # Flutter library and tool build rules.
 set(FLUTTER_MANAGED_DIR "${CMAKE_CURRENT_SOURCE_DIR}/flutter")
-add_subdirectory(${FLUTTER_MANAGED_DIR})
+add_subdirectory("${FLUTTER_MANAGED_DIR}")
 
 # Application build; see runner/CMakeLists.txt.
 add_subdirectory("runner")
@@ -88,7 +89,7 @@ if(PLUGIN_BUNDLED_LIBRARIES)
 endif()
 
 # Copy the native assets provided by the build.dart from all packages.
-set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/windows/")
+set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}/native_assets/windows/")
 install(DIRECTORY "${NATIVE_ASSETS_DIR}"
    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
    COMPONENT Runtime)

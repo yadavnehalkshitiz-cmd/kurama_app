@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'kurama_colors.dart';
 
 /// Builds the Kurama App MaterialTheme.
@@ -6,37 +7,38 @@ import 'kurama_colors.dart';
 /// Uses Material 3 dark, with tokens from [KuramaColors].
 /// Minimum touch target: 48 dp (WCAG 2.5.5 AA).
 ThemeData buildKuramaTheme() {
+  final baseTheme = ThemeData(brightness: Brightness.dark);
+  
   final cs = ColorScheme.fromSeed(
-    seedColor: KuramaColors.lacquer,
+    seedColor: const Color(0xFFFF5722),
     brightness: Brightness.dark,
   ).copyWith(
-    // Override generated values with exact brand tokens
-    surface: KuramaColors.ink,
-    onSurface: KuramaColors.ivory,
-    primary: KuramaColors.lacquer,
-    onPrimary: KuramaColors.ivory,
-    secondary: KuramaColors.gold,
-    onSecondary: KuramaColors.ink,
-    error: KuramaColors.danger,
-    onError: KuramaColors.ivory,
-    surfaceContainerHighest: KuramaColors.panel,
+    surface: const Color(0xFF12121A),
+    onSurface: const Color(0xFFF4E8D0),
+    primary: const Color(0xFFFF5722),
+    onPrimary: Colors.white,
+    secondary: const Color(0xFFD8B46A),
+    onSecondary: const Color(0xFF0B0809),
+    error: const Color(0xFF743533),
+    onError: Colors.white,
   );
 
   return ThemeData(
     useMaterial3: true,
     colorScheme: cs,
-    scaffoldBackgroundColor: KuramaColors.ink,
+    scaffoldBackgroundColor: const Color(0xFF12121A),
+    fontFamily: GoogleFonts.outfit().fontFamily,
 
     // ── Typography ──────────────────────────────────────────────────
-    textTheme: const TextTheme(
-      displayLarge: TextStyle(
+    textTheme: GoogleFonts.outfitTextTheme(baseTheme.textTheme).copyWith(
+      displayLarge: const TextStyle(
           fontSize: 28, fontWeight: FontWeight.w700, color: KuramaColors.ivory),
-      titleLarge: TextStyle(
+      titleLarge: const TextStyle(
           fontSize: 20, fontWeight: FontWeight.w600, color: KuramaColors.ivory),
-      bodyLarge: TextStyle(fontSize: 16, color: KuramaColors.ivory),
-      bodyMedium: TextStyle(fontSize: 14, color: KuramaColors.ivory),
-      bodySmall: TextStyle(fontSize: 12, color: KuramaColors.ash),
-      labelSmall: TextStyle(fontSize: 11, color: KuramaColors.ash),
+      bodyLarge: const TextStyle(fontSize: 16, color: KuramaColors.ivory),
+      bodyMedium: const TextStyle(fontSize: 14, color: KuramaColors.ivory),
+      bodySmall: const TextStyle(fontSize: 12, color: KuramaColors.ash),
+      labelSmall: const TextStyle(fontSize: 11, color: KuramaColors.ash),
     ),
 
     // ── Buttons — 48 dp minimum height ─────────────────────────────
@@ -73,13 +75,13 @@ ThemeData buildKuramaTheme() {
 
     // ── Cards ───────────────────────────────────────────────────────
     cardTheme: CardThemeData(
-      color: KuramaColors.panel,
+      color: const Color(0xFF1E1E2C),
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0x22FFFFFF)),
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
       ),
-      margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 0),
+      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
     ),
 
     // ── Input fields ────────────────────────────────────────────────

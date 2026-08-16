@@ -1,5 +1,5 @@
 package com.kuramabot.kurama_mobile
 
-import com.ryanheise.audioservice.AudioServiceActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 
-class MainActivity : AudioServiceActivity()
+class MainActivity: FlutterFragmentActivity()

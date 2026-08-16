@@ -6,11 +6,23 @@ import 'package:flutter/material.dart';
 /// any token that is never referenced.
 abstract final class KuramaColors {
   // ── Backgrounds ────────────────────────────────────────────────────
-  /// Primary app background — deep charcoal.
-  static const Color ink = Color(0xFF0D0D14);
+  /// Primary app background — pitch dark obsidian.
+  static const Color ink = Color(0xFF0A0A0E);
+
+  /// Deep obsidian canvas background.
+  static const Color surfaceDark = Color(0xFF0D0D14);
 
   /// Card / sheet surface — slightly lighter than ink.
   static const Color panel = Color(0xFF171720);
+
+  /// Glassmorphic container surface.
+  static const Color surfaceContainer = Color(0xFF14141E);
+
+  /// Glass container subtle border.
+  static const Color glassBorder = Color(0x1FFFFFFF);
+
+  /// Glow accent for Lacquer buttons and hero artwork.
+  static const Color lacquerGlow = Color(0x66E53935);
 
   // ── Brand accents ─────────────────────────────────────────────────
   /// Lacquer red — primary interactive colour, CTAs, progress.

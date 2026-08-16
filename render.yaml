@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: kurama-api
+    runtime: docker
+    dockerfilePath: deployment/Dockerfile
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: KURAMA_API_KEY
+        sync: false
+      - key: API_AUTH_KEY
+        sync: false
+      - key: PYTHONUNBUFFERED
+        value: "1"

@@ -7,6 +7,7 @@ import '../models/download_task.dart';
 import '../services/app_state.dart';
 import '../services/background_download_service.dart';
 import '../widgets/platform_badge.dart';
+import '../services/permission_service.dart';
 import 'download_progress_screen.dart';
 import 'downloads_screen.dart';
 import 'player_screen.dart';
@@ -333,14 +334,20 @@ class _VideoInfoScreenState extends State<VideoInfoScreen> {
   }
 
   Future<void> _startDownload() async {
+    // 🔒 Permission Check
+    final granted = await PermissionService.checkAndRequestStorage(context);
+    if (!mounted || !granted) return;
+
+    final state = context.read<AppState>();
     // Already downloaded this URL? Offer to open it instead of paying again.
-    final existing = context
-        .read<AppState>()
+    final existing = state
         .downloads
         .where((t) =>
             t.url == widget.info.url && t.status == DownloadStatus.completed)
         .firstOrNull;
+
     if (existing != null) {
+      if (!mounted) return;
       final open = await showDialog<bool>(
             context: context,
             builder: (context) => AlertDialog(
@@ -386,11 +393,13 @@ class _VideoInfoScreenState extends State<VideoInfoScreen> {
     }
 
     try {
+      if (!mounted) return;
       // ✅ FIX: access ApiClient through AppState — it's not provided separately
-      final api = context.read<AppState>().client;
+      final state = context.read<AppState>();
+      final api = state.client;
       final taskId = await api.startDownload(
         url: widget.info.url,
-        userId: context.read<AppState>().userId,
+        userId: state.userId,
         format: _selectedFormat,
         videoQuality: _selectedVideoQuality,
         audioQuality: _selectedAudioQuality,

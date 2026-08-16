@@ -1,307 +1,65 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:just_audio_background/just_audio_background.dart';
-import 'models/download_task.dart';
-import 'services/api_client.dart';
+import 'app/app.dart';
+import 'app/app_bootstrap.dart';
+import 'app/app_environment.dart';
 import 'services/app_state.dart';
 import 'services/download_storage.dart';
-import 'services/background_download_service.dart';
 import 'services/notification_service.dart';
-import 'screens/home_screen.dart';
-import 'screens/browser_screen.dart';
-import 'screens/downloads_screen.dart';
-import 'screens/vault_screen.dart';
-import 'screens/profile_screen.dart';
-import 'screens/player_screen.dart';
-
-final navigatorKey = GlobalKey<NavigatorState>();
+import 'services/background_download_service.dart';
+import 'package:just_audio_background/just_audio_background.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  final env = AppEnvironment.fromBuildConfig();
+  final scope = await AppBootstrap.initialize(env);
 
-  await JustAudioBackground.init(
-    androidNotificationChannelId: 'com.kuramabot.audio',
-    androidNotificationChannelName: 'Kurama audio playback',
-    androidNotificationOngoing: true,
-  );
-  await NotificationService.initialize(
-    onOpen: (path) => _openDownloadedMedia(path),
-  );
-  await NotificationService.requestPermission();
-  await BackgroundDownloadService.initialize();
-
-  // Edge-to-edge dark status bar
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-      systemNavigationBarColor: Color(0xFF0A0A0E),
-    ),
-  );
-
-  final prefs = await SharedPreferences.getInstance();
-  final storage = DownloadStorage(prefs);
+  // 1. Initial State Load
+  final storage = DownloadStorage(scope.prefs);
   final userId = await storage.loadOrCreateUserId();
 
-  // Restore saved server config or use zero-config cloud backend defaults
-  final savedUrl = storage.loadServerUrl();
-  final savedKey = storage.loadApiKey();
-
-  // Production credentials must be supplied at build time and never committed.
-  const prodKey = String.fromEnvironment('KURAMA_API_KEY');
-  // Default local backend server
-  String defaultUrl = 'http://localhost:8000';
-  if (defaultTargetPlatform == TargetPlatform.android) {
-    defaultUrl = 'http://10.0.2.2:8000';
-  }
-
-  // Force reset if saved values are placeholders, stale Render URLs, or invalid
-  final String effectiveUrl;
-  if (savedUrl == null ||
-      savedUrl.isEmpty ||
-      savedUrl.contains('changeme') ||
-      savedUrl.contains('onrender.com')) {
-    effectiveUrl = defaultUrl;
-    await storage.clearServerConfig();
-  } else {
-    effectiveUrl = savedUrl;
-  }
-
-  final String effectiveKey;
-  if (savedKey == null || savedKey.isEmpty || savedKey.contains('changeme')) {
-    effectiveKey = prodKey;
-  } else {
-    effectiveKey = savedKey;
-  }
-
-  final apiClient = ApiClient(
-    baseUrl: effectiveUrl,
-    apiKey: effectiveKey,
+  final appState = AppState(
+    storage,
+    scope.apiClient,
+    userId: userId,
   );
+
+  // 2. Background initialization (non-blocking)
+  _initPlatformServices();
 
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => AppState(storage, apiClient, userId: userId),
-      child: const KuramaApp(),
+    MultiProvider(
+      providers: [
+        Provider.value(value: scope),
+        ChangeNotifierProvider.value(value: appState),
+      ],
+      child: KuramaApp(scope: scope),
     ),
   );
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    final path = NotificationService.pendingLaunchPath;
-    if (path != null) _openDownloadedMedia(path);
-  });
 }
 
-Future<void> _openDownloadedMedia(String path) async {
-  final context = navigatorKey.currentContext;
-  if (context == null) return;
-  // Find the source task so the player shows the real title + thumbnail.
-  DownloadTask? match;
+bool _platformServicesInitialized = false;
+
+Future<void> _initPlatformServices() async {
+  if (_platformServicesInitialized) return;
+  _platformServicesInitialized = true;
+  
   try {
-    final prefs = await SharedPreferences.getInstance();
-    for (final task in DownloadStorage(prefs).loadDownloads()) {
-      if (task.localPath == path || task.vaultPath == path) {
-        match = task;
-        break;
-      }
-    }
-  } catch (_) {}
-  if (!context.mounted) return;
-  Navigator.of(context).push(
-    MaterialPageRoute(
-      builder: (_) => PlayerScreen(
-        filePath: path,
-        title: match?.title ?? 'Downloaded media',
-        format: match?.format ?? 'video',
-        artist: match?.format == 'audio' ? match?.platform : null,
-        artworkUrl: match?.thumbnailUrl,
-      ),
-    ),
-  );
-}
-
-class KuramaApp extends StatelessWidget {
-  const KuramaApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      navigatorKey: navigatorKey,
-      title: 'Kurama App',
-      debugShowCheckedModeBanner: false,
-      theme: _buildTheme(),
-      darkTheme: _buildTheme(),
-      themeMode: ThemeMode.dark,
-      home: const AppShell(),
+    debugPrint('[Main] Initializing platform services...');
+    // Small delay to let the UI breathe first
+    await Future.delayed(const Duration(milliseconds: 500));
+    
+    await JustAudioBackground.init(
+      androidNotificationChannelId: 'com.kuramabot.audio',
+      androidNotificationChannelName: 'Kurama audio playback',
+      androidNotificationOngoing: true,
     );
-  }
-
-  ThemeData _buildTheme() {
-    // Ultra-premium Obsidian Glass brand palette
-    const primarySeed = Color(0xFFFF5722); // Vibrant Fox Amber
-    const bgDark = Color(0xFF0A0A0E); // Deepest Obsidian
-    const surfaceDark = Color(0xFF14141E); // Glass Surface
-    const cardDark = Color(0xFF1C1C28); // Elevated Glass Card
-
-    return ThemeData(
-      useMaterial3: true,
-      brightness: Brightness.dark,
-      colorSchemeSeed: primarySeed,
-      scaffoldBackgroundColor: bgDark,
-      appBarTheme: const AppBarTheme(
-        centerTitle: true,
-        elevation: 0,
-        backgroundColor: Color(0xFF0D0D12),
-        foregroundColor: Colors.white,
-        surfaceTintColor: Colors.transparent,
-      ),
-      cardTheme: CardThemeData(
-        color: cardDark,
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
-        ),
-      ),
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: surfaceDark,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: primarySeed, width: 2),
-        ),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-      ),
-      filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(
-          backgroundColor: primarySeed,
-          foregroundColor: Colors.white,
-          elevation: 4,
-          shadowColor: primarySeed.withValues(alpha: 0.4),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          textStyle: const TextStyle(
-            fontWeight: FontWeight.w700,
-            fontSize: 16,
-            letterSpacing: 0.4,
-          ),
-        ),
-      ),
-      outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(
-          foregroundColor: Colors.white70,
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.18)),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
-      ),
-      chipTheme: ChipThemeData(
-        backgroundColor: surfaceDark,
-        selectedColor: primarySeed.withValues(alpha: 0.3),
-        side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-      ),
-      dividerTheme: DividerThemeData(
-        color: Colors.white.withValues(alpha: 0.08),
-        thickness: 1,
-      ),
-      snackBarTheme: SnackBarThemeData(
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      ),
-    );
-  }
-}
-
-// ═════════════════════════════════════════════════════════
-//  Glass Bottom Navigation Shell
-// ═════════════════════════════════════════════════════════
-
-class AppShell extends StatefulWidget {
-  const AppShell({super.key});
-
-  @override
-  State<AppShell> createState() => _AppShellState();
-}
-
-class _AppShellState extends State<AppShell> {
-  int _currentIndex = 0;
-
-  final List<Widget> _screens = const [
-    HomeScreen(),
-    BrowserScreen(),
-    DownloadsScreen(),
-    VaultScreen(),
-    ProfileScreen(),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
-
-    return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF0D0D12),
-          border: Border(
-            top: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
-          ),
-        ),
-        child: NavigationBar(
-          selectedIndex: _currentIndex,
-          onDestinationSelected: (i) => setState(() => _currentIndex = i),
-          backgroundColor: Colors.transparent,
-          surfaceTintColor: Colors.transparent,
-          indicatorColor: primary.withValues(alpha: 0.15),
-          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-          height: 68,
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home_rounded),
-              label: 'Home',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.language_outlined),
-              selectedIcon: Icon(Icons.language_rounded),
-              label: 'Browse',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.download_outlined),
-              selectedIcon: Icon(Icons.download_rounded),
-              label: 'Downloads',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.lock_outline_rounded),
-              selectedIcon: Icon(Icons.lock_rounded),
-              label: 'Vault',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.person_outline_rounded),
-              selectedIcon: Icon(Icons.person_rounded),
-              label: 'Profile',
-            ),
-          ],
-        ),
-      ),
-    );
+    
+    await NotificationService.initialize();
+    await BackgroundDownloadService.initialize();
+    debugPrint('[Main] Platform services ready.');
+  } catch (e) {
+    debugPrint('[Main] Platform service init error: $e');
   }
 }

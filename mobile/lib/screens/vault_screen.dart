@@ -1,5 +1,5 @@
 import 'dart:io';
-
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
@@ -19,8 +19,7 @@ class VaultScreen extends StatefulWidget {
   State<VaultScreen> createState() => _VaultScreenState();
 }
 
-class _VaultScreenState extends State<VaultScreen>
-    with WidgetsBindingObserver {
+class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
   final _auth = LocalAuthentication();
   late final VaultKeyStore _keys;
   late final VaultService _vault;
@@ -74,6 +73,7 @@ class _VaultScreenState extends State<VaultScreen>
         _unlocked = authenticated;
         _busy = false;
       });
+      if (authenticated) HapticFeedback.mediumImpact();
     }
   }
 
@@ -103,22 +103,31 @@ class _VaultScreenState extends State<VaultScreen>
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: Text(title),
+        backgroundColor: const Color(0xFF1E1E2C),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        title: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         content: TextField(
           controller: controller,
           autofocus: true,
           obscureText: true,
           keyboardType: TextInputType.number,
           maxLength: 6,
+          style: const TextStyle(color: Colors.white, fontSize: 28, letterSpacing: 8, fontWeight: FontWeight.bold),
+          textAlign: TextAlign.center,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          decoration: const InputDecoration(labelText: '6-digit PIN'),
+          decoration: InputDecoration(
+            hintText: '••••••',
+            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.1)),
+            counterText: '',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
+            filled: true,
+            fillColor: Colors.black26,
+          ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel', style: TextStyle(color: Colors.white38))),
           FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFFF5722)),
             onPressed: () => Navigator.pop(context, controller.text),
             child: const Text('Continue'),
           ),
@@ -156,94 +165,279 @@ class _VaultScreenState extends State<VaultScreen>
     }
   }
 
+  Future<void> _restore(DownloadTask task) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E2C),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        title: const Text('Restore from Vault?', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: const Text('This will decrypt the file and make it visible in your main library again.', style: TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel', style: TextStyle(color: Colors.white38))),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFFF5722)),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Restore'),
+          ),
+        ],
+      ),
+    ) ?? false;
+
+    if (!confirmed) return;
+
+    try {
+      setState(() => _busy = true);
+      final restoredFile = await _vault.restoreFromVault(task);
+      if (mounted) {
+        await context.read<AppState>().restoreFromVault(task.taskId, restoredFile.path);
+        _message('✅ Restored: ${task.title}');
+      }
+    } catch (e) {
+      _message('❌ Restore failed: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _delete(DownloadTask task) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E2C),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        title: const Text('Permanently Delete?', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: const Text('This item will be removed from your vault and device forever.', style: TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel', style: TextStyle(color: Colors.white38))),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    ) ?? false;
+
+    if (!confirmed) return;
+
+    try {
+      setState(() => _busy = true);
+      if (task.vaultPath != null) {
+        final file = File(task.vaultPath!);
+        if (await file.exists()) await file.delete();
+      }
+      if (mounted) {
+        context.read<AppState>().removeDownload(task.taskId);
+        _message('🗑️ Deleted from Vault');
+      }
+    } catch (e) {
+      _message('❌ Delete failed: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   void _message(String text) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text), behavior: SnackBarBehavior.floating));
   }
 
   @override
   Widget build(BuildContext context) {
-    final items = context
-        .watch<AppState>()
-        .downloads
-        .where((task) => task.isPrivate)
-        .toList();
+    final items = context.watch<AppState>().downloads.where((task) => task.isPrivate).toList();
+    const primary = Color(0xFFFF5722);
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Private Vault'),
-        actions: [
-          if (_unlocked)
-            IconButton(
-              onPressed: () => setState(() => _unlocked = false),
-              icon: const Icon(Icons.lock_rounded),
-              tooltip: 'Lock now',
+      backgroundColor: const Color(0xFF0A0A0E),
+      body: Stack(
+        children: [
+          // Background "Deep" layer
+          Positioned.fill(
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment.center,
+                  radius: 1.0,
+                  colors: [Color(0xFF1A1A2E), Color(0xFF0A0A0E)],
+                ),
+              ),
+              child: Center(
+                child: Opacity(
+                  opacity: 0.02,
+                  child: Image.asset('assets/images/logo.png', width: 400),
+                ),
+              ),
             ),
+          ),
+
+          if (!_unlocked)
+            _lockedOverlay(primary)
+          else
+            _unlockedView(items, primary),
+
+          if (_busy)
+            const Positioned(top: 0, left: 0, right: 0, child: LinearProgressIndicator(color: primary, minHeight: 2)),
         ],
       ),
-      body: !_unlocked ? _lockedView() : _vaultView(items),
     );
   }
 
-  Widget _lockedView() => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.fingerprint_rounded,
-                  size: 76, color: Color(0xFFFF6D2D)),
-              const SizedBox(height: 22),
-              const Text('Vault locked',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
-              const SizedBox(height: 8),
-              const Text(
-                'Private files stay AES-256 encrypted until you unlock them.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white60),
-              ),
-              const SizedBox(height: 28),
-              FilledButton.icon(
-                onPressed: _busy ? null : _unlock,
-                icon: _busy
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.lock_open_rounded),
-                label: const Text('Unlock securely'),
-              ),
-            ],
+  Widget _lockedOverlay(Color primary) {
+    return BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+      child: Container(
+        color: Colors.black.withValues(alpha: 0.4),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(40),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(32),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: primary.withValues(alpha: 0.2)),
+                    boxShadow: [BoxShadow(color: primary.withValues(alpha: 0.1), blurRadius: 60, spreadRadius: 10)],
+                  ),
+                  child: Icon(Icons.lock_person_rounded, size: 80, color: primary),
+                ),
+                const SizedBox(height: 40),
+                const Text('PRIVATE VAULT', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: 8)),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(color: primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+                  child: Text('AES-256 MILITARY GRADE ENCRYPTION', style: TextStyle(color: primary.withValues(alpha: 0.8), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+                ),
+                const SizedBox(height: 64),
+                GestureDetector(
+                  onTap: _busy ? null : _unlock,
+                  child: Container(
+                    width: 220,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(colors: [primary, primary.withRed(200)]),
+                      borderRadius: BorderRadius.circular(32),
+                      boxShadow: [BoxShadow(color: primary.withValues(alpha: 0.3), blurRadius: 20, offset: const Offset(0, 10))],
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.fingerprint_rounded, color: Colors.white),
+                        SizedBox(width: 12),
+                        Text('UNLOCK VAULT', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1.2)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-      );
+      ),
+    );
+  }
 
-  Widget _vaultView(List<DownloadTask> items) {
-    if (items.isEmpty) {
-      return const Center(child: Text('No private downloads yet'));
-    }
-    return Stack(
-      children: [
-        ListView.separated(
-          padding: const EdgeInsets.all(16),
-          itemCount: items.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 10),
-          itemBuilder: (context, index) {
-            final task = items[index];
-            return Card(
-              child: ListTile(
-                leading: const Icon(Icons.enhanced_encryption_rounded,
-                    color: Color(0xFFFF6D2D)),
-                title: Text(task.title, maxLines: 1),
-                subtitle: const Text('Encrypted on this device'),
-                trailing: IconButton(
-                  onPressed: _busy ? null : () => _play(task),
-                  icon: const Icon(Icons.play_circle_fill_rounded),
-                ),
-              ),
-            );
-          },
+  Widget _unlockedView(List<DownloadTask> items, Color primary) {
+    return CustomScrollView(
+      physics: const BouncingScrollPhysics(),
+      slivers: [
+        SliverAppBar(
+          backgroundColor: const Color(0xFF0A0A0E),
+          elevation: 0,
+          pinned: true,
+          centerTitle: true,
+          title: const Text('PRIVATE VAULT', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 4, fontSize: 16)),
+          actions: [
+            IconButton(icon: const Icon(Icons.lock_rounded, color: Colors.white38), onPressed: () => setState(() => _unlocked = false)),
+          ],
         ),
-        if (_busy) const LinearProgressIndicator(),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E1E2C),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.security_rounded, color: Colors.greenAccent),
+                  const SizedBox(width: 16),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Vault is Unlocked', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        Text('Media is decrypted on-the-fly', style: TextStyle(color: Colors.white24, fontSize: 11)),
+                      ],
+                    ),
+                  ),
+                  Text('${items.length} ITEMS', style: const TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (items.isEmpty)
+          const SliverFillRemaining(
+            child: Center(child: Text('No private items yet', style: TextStyle(color: Colors.white10, fontWeight: FontWeight.bold))),
+          )
+        else
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final task = items[index];
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF14141E),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                    ),
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.all(12),
+                      leading: Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(16)),
+                        child: Icon(task.format == 'audio' ? Icons.audiotrack_rounded : Icons.lock_outline_rounded, color: primary, size: 24),
+                      ),
+                      title: Text(task.title, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      subtitle: Text('Encrypted ${task.format.toUpperCase()}', style: const TextStyle(color: Colors.white24, fontSize: 10, fontWeight: FontWeight.bold)),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.unarchive_rounded, color: Colors.white38, size: 20),
+                            onPressed: _busy ? null : () => _restore(task),
+                            tooltip: 'Restore to Library',
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline_rounded, color: Colors.white38, size: 20),
+                            onPressed: _busy ? null : () => _delete(task),
+                            tooltip: 'Delete Permanently',
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(Icons.play_circle_fill_rounded, color: Colors.white70, size: 32),
+                            onPressed: _busy ? null : () => _play(task),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+                childCount: items.length,
+              ),
+            ),
+          ),
       ],
     );
   }
