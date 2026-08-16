@@ -2,7 +2,7 @@ services:
   - type: web
     name: kurama-api
     runtime: docker
-    dockerfilePath: deployment/Dockerfile
+    dockerfilePath: Dockerfile
     dockerContext: .
     plan: free
     envVars:
